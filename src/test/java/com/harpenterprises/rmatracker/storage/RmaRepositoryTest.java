@@ -130,7 +130,7 @@ class RmaRepositoryTest {
 
         repository.save(record);
 
-        record.setStatus(Status.COMPLETED);
+        record.setStatus(Status.REPAIR_COMPLETE);
         record.setNotes("After update");
 
         repository.update(record);
@@ -140,7 +140,7 @@ class RmaRepositoryTest {
                         .orElseThrow();
 
         assertEquals(
-                Status.COMPLETED,
+                Status.REPAIR_COMPLETE,
                 loadedRecord.getStatus()
         );
 

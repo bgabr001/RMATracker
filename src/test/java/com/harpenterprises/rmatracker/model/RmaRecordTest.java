@@ -73,10 +73,10 @@ class RmaRecordTest {
                 ""
         );
 
-        record.setStatus(Status.COMPLETED);
+        record.setStatus(Status.REPAIR_COMPLETE);
 
         assertEquals(
-                Status.COMPLETED,
+                Status.REPAIR_COMPLETE,
                 record.getStatus()
         );
     }

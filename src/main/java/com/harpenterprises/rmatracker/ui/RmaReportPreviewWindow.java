@@ -2,6 +2,7 @@ package com.harpenterprises.rmatracker.ui;
 
 import com.harpenterprises.rmatracker.model.RepairItem;
 import com.harpenterprises.rmatracker.model.RmaRecord;
+import com.harpenterprises.rmatracker.model.ShippingInfo;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -235,6 +236,7 @@ public class RmaReportPreviewWindow extends JDialog {
                 .append("</strong></p>");
 
         appendRmaInformation(html);
+        appendShippingInformation(html);
         appendMachineInformation(html);
         appendStatusHistoryPlaceholder(html);
 
@@ -288,30 +290,30 @@ public class RmaReportPreviewWindow extends JDialog {
 
         appendInformationRow(
                 html,
-                "Outgoing Tracking",
-                safeText(
-                        rmaRecord
-                                .getOutgoingTrackingNumber()
-                )
-        );
-
-        appendInformationRow(
-                html,
-                "Return Tracking",
-                safeText(
-                        rmaRecord
-                                .getReturnTrackingNumber()
-                )
-        );
-
-        appendInformationRow(
-                html,
                 "General Notes",
                 formatMultilineText(
                         rmaRecord.getNotes()
                 )
         );
 
+        html.append("</table>");
+    }
+
+    private void appendShippingInformation(StringBuilder html) {
+        html.append("<h2>Shipping Information</h2>");
+        List<ShippingInfo> shipments = rmaRecord.getShippingInformation();
+        if (shipments == null || shipments.isEmpty()) {
+            html.append("<div class='empty-message'>No shipping information has been added.</div>");
+            return;
+        }
+        html.append("<table><tr><th>Direction</th><th>Carrier</th><th>Shipping Number</th></tr>");
+        for (ShippingInfo shipment : shipments) {
+            html.append("<tr>");
+            appendMachineCell(html, shipment.getDirection() == null ? "" : shipment.getDirection().toString());
+            appendMachineCell(html, shipment.getCarrier());
+            appendMachineCell(html, shipment.getTrackingNumber());
+            html.append("</tr>");
+        }
         html.append("</table>");
     }
 
@@ -347,6 +349,7 @@ public class RmaReportPreviewWindow extends JDialog {
         html.append("<th>RMA Number</th>");
         html.append("<th>Problem Description</th>");
         html.append("<th>Repair Description</th>");
+        html.append("<th>Received</th>");
         html.append("</tr>");
 
         for (RepairItem repairItem : repairItems) {
@@ -380,6 +383,11 @@ public class RmaReportPreviewWindow extends JDialog {
             appendMachineCell(
                     html,
                     repairItem.getRepairDescription()
+            );
+
+            appendMachineCell(
+                    html,
+                    repairItem.isReceived() ? "X" : ""
             );
 
             html.append("</tr>");

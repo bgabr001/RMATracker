@@ -76,6 +76,21 @@ public final class DatabaseManager {
                         version TEXT,
                         problem_description TEXT,
                         repair_description TEXT,
+                        received INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY (rma_id)
+                            REFERENCES rmas(id)
+                            ON DELETE CASCADE
+                    )
+                    """);
+
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS shipping_information (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rma_id INTEGER NOT NULL,
+                        carrier TEXT NOT NULL,
+                        tracking_number TEXT NOT NULL,
+                        shipping_direction TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (rma_id)
                             REFERENCES rmas(id)
                             ON DELETE CASCADE
@@ -137,6 +152,13 @@ public final class DatabaseManager {
                     "TEXT"
             );
 
+            addColumnIfMissing(
+                    connection,
+                    "repair_items",
+                    "received",
+                    "INTEGER NOT NULL DEFAULT 0"
+            );
+
             statement.execute("""
                     CREATE INDEX IF NOT EXISTS idx_rmas_rma_number
                     ON rmas(rma_number)
@@ -155,6 +177,16 @@ public final class DatabaseManager {
             statement.execute("""
                     CREATE INDEX IF NOT EXISTS idx_items_serial
                     ON repair_items(serial_number)
+                    """);
+
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_shipping_rma_id
+                    ON shipping_information(rma_id)
+                    """);
+
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_shipping_tracking
+                    ON shipping_information(tracking_number)
                     """);
 
             statement.execute("""

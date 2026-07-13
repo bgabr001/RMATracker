@@ -3,6 +3,8 @@ package com.harpenterprises.rmatracker.ui;
 import com.harpenterprises.rmatracker.model.RepairItem;
 import com.harpenterprises.rmatracker.model.RmaRecord;
 import com.harpenterprises.rmatracker.model.Status;
+import com.harpenterprises.rmatracker.model.ShippingInfo;
+import com.harpenterprises.rmatracker.model.ShippingDirection;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
 
 import javax.swing.*;
@@ -38,12 +40,16 @@ public class RmaFormDialog extends JDialog {
      */
     private final JTable repairItemsTable;
     private final DefaultTableModel repairItemsTableModel;
+    private final JTable shippingTable;
+    private final DefaultTableModel shippingTableModel;
 
     /*
      * Buttons
      */
     private final JButton addItemButton;
     private final JButton removeItemButton;
+    private final JButton addShippingButton;
+    private final JButton removeShippingButton;
     private final JButton saveButton;
     private final JButton cancelButton;
 
@@ -117,6 +123,23 @@ public class RmaFormDialog extends JDialog {
         notesArea.setLineWrap(true);
         notesArea.setWrapStyleWord(true);
 
+        shippingTableModel = new DefaultTableModel(
+                new Object[]{"Carrier", "Shipping Number", "Direction"}, 0
+        ) {
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return columnIndex == 2 ? ShippingDirection.class : String.class;
+            }
+        };
+
+        shippingTable = new JTable(shippingTableModel);
+        shippingTable.setRowHeight(24);
+        shippingTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        shippingTable.getTableHeader().setReorderingAllowed(false);
+        shippingTable.getColumnModel().getColumn(2).setCellEditor(
+                new DefaultCellEditor(new JComboBox<>(ShippingDirection.values()))
+        );
+
         /*
          * Create repair-item table.
          */
@@ -128,10 +151,16 @@ public class RmaFormDialog extends JDialog {
                                 "Serial Number",
                                 "Version",
                                 "Problem Description",
-                                "Repair Description"
+                                "Repair Description",
+                                "Received"
                         },
                         0
-                );
+                ) {
+                    @Override
+                    public Class<?> getColumnClass(int columnIndex) {
+                        return columnIndex == 6 ? Boolean.class : String.class;
+                    }
+                };
 
         repairItemsTable =
                 new JTable(repairItemsTableModel);
@@ -147,6 +176,19 @@ public class RmaFormDialog extends JDialog {
                 .getTableHeader()
                 .setReorderingAllowed(false);
 
+        JComboBox<String> machineTypeEditor = new JComboBox<>(
+                new String[]{
+                        "Scanner",
+                        "Duo Standalone",
+                        "Touch Writer",
+                        "Duo",
+                        "Print"
+                }
+        );
+        repairItemsTable.getColumnModel()
+                .getColumn(1)
+                .setCellEditor(new DefaultCellEditor(machineTypeEditor));
+
         configureRepairItemColumnWidths();
 
         /*
@@ -154,6 +196,9 @@ public class RmaFormDialog extends JDialog {
          */
         addItemButton = new JButton("Add Item");
         removeItemButton = new JButton("Remove Item");
+        addShippingButton = new JButton("+");
+        addShippingButton.setToolTipText("Add shipping information");
+        removeShippingButton = new JButton("Remove Shipping");
         saveButton = new JButton("Save");
         cancelButton = new JButton("Cancel");
 
@@ -168,7 +213,7 @@ public class RmaFormDialog extends JDialog {
         );
 
         add(
-                createRepairItemsPanel(),
+                createCenterDataPanel(),
                 BorderLayout.CENTER
         );
 
@@ -285,22 +330,6 @@ public class RmaFormDialog extends JDialog {
                 statusComboBox
         );
 
-        addFormRow(
-                formPanel,
-                constraints,
-                row++,
-                "Outgoing Tracking:",
-                outgoingTrackingField
-        );
-
-        addFormRow(
-                formPanel,
-                constraints,
-                row++,
-                "Return Tracking:",
-                returnTrackingField
-        );
-
         constraints.gridx = 0;
         constraints.gridy = row;
         constraints.weightx = 0;
@@ -361,6 +390,27 @@ public class RmaFormDialog extends JDialog {
                 GridBagConstraints.HORIZONTAL;
 
         panel.add(component, constraints);
+    }
+
+    private JPanel createCenterDataPanel() {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.add(createShippingPanel(), BorderLayout.NORTH);
+        panel.add(createRepairItemsPanel(), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createShippingPanel() {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.setBorder(BorderFactory.createTitledBorder("Shipping Information"));
+        JScrollPane scrollPane = new JScrollPane(shippingTable);
+        scrollPane.setPreferredSize(new Dimension(850, 115));
+        panel.add(scrollPane, BorderLayout.CENTER);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttons.add(addShippingButton);
+        buttons.add(new JLabel("Add another shipment"));
+        buttons.add(removeShippingButton);
+        panel.add(buttons, BorderLayout.SOUTH);
+        return panel;
     }
 
     private JPanel createRepairItemsPanel() {
@@ -429,7 +479,8 @@ public class RmaFormDialog extends JDialog {
                 150,
                 100,
                 260,
-                260
+                260,
+                90
         };
 
         for (int column = 0;
@@ -448,6 +499,9 @@ public class RmaFormDialog extends JDialog {
     }
 
     private void addListeners() {
+        addShippingButton.addActionListener(event -> addShippingRow());
+        removeShippingButton.addActionListener(event -> removeShippingRow());
+
         addItemButton.addActionListener(
                 event -> addRepairItem()
         );
@@ -519,6 +573,8 @@ public class RmaFormDialog extends JDialog {
         statusComboBox.addActionListener(
                 event -> markFormChanged()
         );
+
+        shippingTableModel.addTableModelListener(event -> markFormChanged());
 
         repairItemsTableModel.addTableModelListener(
                 event -> {
@@ -601,6 +657,28 @@ public class RmaFormDialog extends JDialog {
         }
     }
 
+    private void addShippingRow() {
+        stopTableEditing();
+        shippingTableModel.addRow(new Object[]{"", "", ShippingDirection.SENT_TO_REPAIR});
+        int row = shippingTableModel.getRowCount() - 1;
+        shippingTable.setRowSelectionInterval(row, row);
+        shippingTable.editCellAt(row, 0);
+        shippingTable.requestFocusInWindow();
+        formChanged = true;
+    }
+
+    private void removeShippingRow() {
+        stopTableEditing();
+        int row = shippingTable.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Select shipping information to remove.",
+                    "No Shipping Selected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        shippingTableModel.removeRow(shippingTable.convertRowIndexToModel(row));
+        formChanged = true;
+    }
+
     private void addRepairItem() {
         stopTableEditing();
 
@@ -611,7 +689,8 @@ public class RmaFormDialog extends JDialog {
                         "",
                         "",
                         "",
-                        ""
+                        "",
+                        Boolean.FALSE
                 }
         );
 
@@ -719,6 +798,17 @@ public class RmaFormDialog extends JDialog {
                 )
         );
 
+        List<ShippingInfo> existingShipping = existingRecord.getShippingInformation();
+        if (existingShipping != null) {
+            for (ShippingInfo shipping : existingShipping) {
+                shippingTableModel.addRow(new Object[]{
+                        emptyIfNull(shipping.getCarrier()),
+                        emptyIfNull(shipping.getTrackingNumber()),
+                        shipping.getDirection()
+                });
+            }
+        }
+
         for (RepairItem item :
                 existingRecord.getRepairItems()) {
 
@@ -741,7 +831,8 @@ public class RmaFormDialog extends JDialog {
                             ),
                             emptyIfNull(
                                     item.getRepairDescription()
-                            )
+                            ),
+                            item.isReceived()
                     }
             );
         }
@@ -826,6 +917,13 @@ public class RmaFormDialog extends JDialog {
                 return;
             }
 
+            List<ShippingInfo> shippingInformation =
+                    readAndValidateShippingInformation();
+
+            if (shippingInformation == null) {
+                return;
+            }
+
             List<RepairItem> repairItems =
                     readAndValidateRepairItems();
 
@@ -839,16 +937,13 @@ public class RmaFormDialog extends JDialog {
                             dateSent,
                             dateReceived,
                             status,
-                            outgoingTrackingField
-                                    .getText()
-                                    .trim(),
-                            returnTrackingField
-                                    .getText()
-                                    .trim(),
+                            "",
+                            "",
                             notesArea
                                     .getText()
                                     .trim(),
-                            repairItems
+                            repairItems,
+                            shippingInformation
                     );
 
             if (existingRecord == null) {
@@ -937,6 +1032,33 @@ public class RmaFormDialog extends JDialog {
      *
      * Returns null when validation fails.
      */
+    private List<ShippingInfo> readAndValidateShippingInformation() {
+        List<ShippingInfo> shipments = new ArrayList<>();
+        for (int row = 0; row < shippingTableModel.getRowCount(); row++) {
+            String carrier = getShippingValue(row, 0);
+            String tracking = getShippingValue(row, 1);
+            Object directionValue = shippingTableModel.getValueAt(row, 2);
+            ShippingDirection direction = directionValue instanceof ShippingDirection
+                    ? (ShippingDirection) directionValue
+                    : ShippingDirection.SENT_TO_REPAIR;
+            if (carrier.isBlank() && tracking.isBlank()) continue;
+            if (carrier.isBlank() || tracking.isBlank()) {
+                JOptionPane.showMessageDialog(this,
+                        "Carrier and Shipping Number are both required for shipping row " + (row + 1) + ".",
+                        "Incomplete Shipping Information", JOptionPane.WARNING_MESSAGE);
+                shippingTable.setRowSelectionInterval(row, row);
+                return null;
+            }
+            shipments.add(new ShippingInfo(carrier, tracking, direction));
+        }
+        return shipments;
+    }
+
+    private String getShippingValue(int row, int column) {
+        Object value = shippingTableModel.getValueAt(row, column);
+        return value == null ? "" : value.toString().trim();
+    }
+
     private List<RepairItem>
     readAndValidateRepairItems() {
 
@@ -964,6 +1086,9 @@ public class RmaFormDialog extends JDialog {
 
             String repairDescription =
                     getTableValue(row, 5);
+
+            boolean received =
+                    getTableBooleanValue(row, 6);
 
             boolean completelyEmpty =
                     county.isBlank()
@@ -1013,7 +1138,8 @@ public class RmaFormDialog extends JDialog {
                             serialNumber,
                             version,
                             problemDescription,
-                            repairDescription
+                            repairDescription,
+                            received
                     );
 
             repairItems.add(repairItem);
@@ -1079,6 +1205,14 @@ public class RmaFormDialog extends JDialog {
         return value
                 .toString()
                 .trim();
+    }
+
+    private boolean getTableBooleanValue(
+            int row,
+            int column
+    ) {
+        Object value = repairItemsTableModel.getValueAt(row, column);
+        return value instanceof Boolean && (Boolean) value;
     }
 
     private LocalDate parseOptionalDate(
@@ -1159,6 +1293,12 @@ public class RmaFormDialog extends JDialog {
             return false;
         }
 
+        for (int row = 0; row < shippingTableModel.getRowCount(); row++) {
+            if (!getShippingValue(row, 0).isBlank() || !getShippingValue(row, 1).isBlank()) {
+                return false;
+            }
+        }
+
         for (int row = 0;
              row < repairItemsTableModel.getRowCount();
              row++) {
@@ -1182,6 +1322,9 @@ public class RmaFormDialog extends JDialog {
     }
 
     private void stopTableEditing() {
+        if (shippingTable.isEditing()) {
+            shippingTable.getCellEditor().stopCellEditing();
+        }
         if (repairItemsTable.isEditing()) {
             repairItemsTable
                     .getCellEditor()

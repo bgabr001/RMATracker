@@ -7,6 +7,7 @@ import com.harpenterprises.rmatracker.model.Status;
 import com.harpenterprises.rmatracker.service.BackupService;
 import com.harpenterprises.rmatracker.service.RmaSearchService;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
+import com.harpenterprises.rmatracker.storage.DatabaseManager;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -253,7 +254,8 @@ public class MainWindow extends JFrame {
                 "Serial Number",
                 "Version",
                 "Problem Description",
-                "Repair Description"
+                "Repair Description",
+                "Received"
         };
 
         repairItemsTableModel =
@@ -777,7 +779,8 @@ public class MainWindow extends JFrame {
                 150,
                 100,
                 280,
-                280
+                280,
+                90
         };
 
         for (int index = 0;
@@ -899,12 +902,33 @@ public class MainWindow extends JFrame {
                     public void mouseClicked(
                             MouseEvent event
                     ) {
-                        if (event.getClickCount() == 2
-                                && SwingUtilities
+                        if (event.getClickCount() != 2
+                                || !SwingUtilities
                                 .isLeftMouseButton(event)) {
-
-                            openSelectedRma();
+                            return;
                         }
+
+                        int clickedViewRow =
+                                rmaTable.rowAtPoint(
+                                        event.getPoint()
+                                );
+
+                        if (clickedViewRow < 0) {
+                            return;
+                        }
+
+                        /*
+                         * Explicitly select the row under the mouse
+                         * before opening it. This keeps double-click
+                         * reliable even when the table is sorted or
+                         * filtered.
+                         */
+                        rmaTable.setRowSelectionInterval(
+                                clickedViewRow,
+                                clickedViewRow
+                        );
+
+                        openSelectedRma();
                     }
                 }
         );
@@ -1360,7 +1384,8 @@ public class MainWindow extends JFrame {
                         ),
                         displayString(
                                 item.getRepairDescription()
-                        )
+                        ),
+                        item.isReceived() ? "X" : ""
                 }
         );
     }
@@ -1394,7 +1419,8 @@ public class MainWindow extends JFrame {
                         item.getSerialNumber(),
                         item.getVersion(),
                         item.getProblemDescription(),
-                        item.getRepairDescription()
+                        item.getRepairDescription(),
+                        item.isReceived() ? "received" : "not received"
                 );
 
         return containsAllWords(text, searchText);

@@ -1,10 +1,12 @@
 package com.harpenterprises.rmatracker.model;
 
 public enum Status {
-    RECEIVED,
-    WAITING_FOR_PARTS,
+    READY_TO_SHIP,
+    SHIPPED,
+    RECEIVED_BY_VENDOR,
     IN_REPAIR,
-    TESTING,
-    COMPLETED,
-    RETURNED
+    REPAIR_COMPLETE,
+    SHIPPED_BACK,
+    RECEIVED_BACK,
+    CLOSED
 }
