@@ -16,6 +16,8 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.SQLException;
@@ -72,6 +74,7 @@ public class MainWindow extends JFrame {
      */
     private final JButton newRmaButton;
     private final JButton openRmaButton;
+    private final JButton statusHistoryButton;
     private final JButton deleteRmaButton;
     private final JButton refreshButton;
     private final JButton exitButton;
@@ -109,7 +112,7 @@ public class MainWindow extends JFrame {
         setTitle("RMA Repair Tracker");
         setSize(1450, 900);
         setMinimumSize(new Dimension(1100, 720));
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
 
         /*
@@ -155,6 +158,7 @@ public class MainWindow extends JFrame {
          */
         newRmaButton = new JButton("New RMA");
         openRmaButton = new JButton("Open RMA");
+        statusHistoryButton = new JButton("Status History");
         deleteRmaButton = new JButton("Delete RMA");
         refreshButton = new JButton("Refresh");
         exitButton = new JButton("Exit");
@@ -317,6 +321,17 @@ public class MainWindow extends JFrame {
         addKeyboardShortcuts();
 
         setDetailControlsEnabled(false);
+
+        addWindowListener(
+                new WindowAdapter() {
+                    @Override
+                    public void windowClosing(
+                            WindowEvent event
+                    ) {
+                        exitApplication();
+                    }
+                }
+        );
 
         refreshRmaTable(null);
     }
@@ -659,6 +674,7 @@ public class MainWindow extends JFrame {
 
         buttons.add(newRmaButton);
         buttons.add(openRmaButton);
+        buttons.add(statusHistoryButton);
         buttons.add(deleteRmaButton);
         buttons.add(refreshButton);
         buttons.add(exitButton);
@@ -781,6 +797,10 @@ public class MainWindow extends JFrame {
 
         openRmaButton.addActionListener(
                 event -> openSelectedRma()
+        );
+
+        statusHistoryButton.addActionListener(
+                event -> openSelectedRmaHistory()
         );
 
         deleteRmaButton.addActionListener(
@@ -1537,6 +1557,7 @@ public class MainWindow extends JFrame {
             boolean enabled
     ) {
         openRmaButton.setEnabled(enabled);
+        statusHistoryButton.setEnabled(enabled);
         deleteRmaButton.setEnabled(enabled);
         repairItemsTable.setEnabled(enabled);
     }
@@ -1608,6 +1629,30 @@ public class MainWindow extends JFrame {
         }
     }
 
+    private void openSelectedRmaHistory() {
+        RmaRecord selectedRecord =
+                getSelectedRma();
+
+        if (selectedRecord == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please select an RMA to view its status history.",
+                    "No RMA Selected",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return;
+        }
+
+        StatusHistoryDialog dialog =
+                new StatusHistoryDialog(
+                        this,
+                        selectedRecord.getRmaNumber()
+                );
+
+        dialog.setVisible(true);
+    }
+
     private void deleteSelectedRma() {
         RmaRecord selectedRecord =
                 getSelectedRma();
@@ -1629,8 +1674,13 @@ public class MainWindow extends JFrame {
         int choice =
                 JOptionPane.showConfirmDialog(
                         this,
-                        "Are you sure you want to delete RMA "
-                                + rmaNumber + "?",
+                        "Are you sure you want to permanently "
+                                + "delete RMA "
+                                + rmaNumber
+                                + "?\n\n"
+                                + "Its repair items and status "
+                                + "history will also be deleted.\n"
+                                + "This action cannot be undone.",
                         "Delete RMA",
                         JOptionPane.YES_NO_OPTION,
                         JOptionPane.WARNING_MESSAGE
@@ -1647,11 +1697,15 @@ public class MainWindow extends JFrame {
             if (!deleted) {
                 JOptionPane.showMessageDialog(
                         this,
-                        "The RMA was not found.",
-                        "Delete Failed",
+                        "RMA "
+                                + rmaNumber
+                                + " could not be found.\n\n"
+                                + "It may have already been deleted.",
+                        "RMA Not Found",
                         JOptionPane.WARNING_MESSAGE
                 );
 
+                refreshRmaTable(null);
                 return;
             }
 
@@ -1659,7 +1713,8 @@ public class MainWindow extends JFrame {
 
             JOptionPane.showMessageDialog(
                     this,
-                    "RMA " + rmaNumber
+                    "RMA "
+                            + rmaNumber
                             + " was deleted successfully.",
                     "RMA Deleted",
                     JOptionPane.INFORMATION_MESSAGE
@@ -1724,11 +1779,13 @@ public class MainWindow extends JFrame {
                 this,
                 message
                         + "\n\n"
-                        + exception.getMessage(),
+                        + "Please verify that the database "
+                        + "is available and try again.",
                 "Database Error",
                 JOptionPane.ERROR_MESSAGE
         );
 
+        System.err.println(message);
         exception.printStackTrace();
     }
 

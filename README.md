@@ -1144,6 +1144,7 @@ Excel integration, user accounts, server access, and mobile access are not requi
 # Current Progress
 
 ```text
+version 1.0
 Phase 1 -- Foundation
 [x] Step 1: Create the project
 [x] Step 2: Create the project structure
@@ -1157,11 +1158,11 @@ Phase 1 -- Foundation
     [x] Connect the GUI to the database
     
 Phase 2 User Experience
-[ ] Step 7:  Add search and filtering
-[ ] Step 8:  Improve status tracking
-[ ] Step 9:  Add status history
-[ ] Step 10: Add confirmations and error handling
-[ ] Step 11: Add testing
+[x] Step 7:  Add search and filtering
+[ ] Step 8:  Improve status tracking (maybe version 3.0)
+[x] Step 9:  Add status history
+[x] Step 10: Add confirmations and error handling
+[x] Step 11: Add testing
 [ ] Step 12: Improve the application design
 [ ] Step 13: Add backup and restore
 [ ] Step 14: Package the application
@@ -1178,3 +1179,35 @@ Step 4: Build the Main Application Window
 ```
 
 This will create the main RMA dashboard, table, buttons, search area, and summary section.
+
+# Future Versions 
+
+```text
+1.0 (current)
+[X] CRUD for RMAs
+[X] Repair Items
+[X] Search
+[X] SQLite database
+[X] Status field (basic)
+
+2.0
+[ ] Export to Excel
+[ ] Export to PDF
+[ ] Printable RMA reports
+
+3.0
+[ ] Expanded status list
+[ ] Color-coded statuses
+[ ] Quick status changes
+[ ] Automatic date updates
+[ ] Status statistics dashboard
+
+4.0
+[ ] Web version
+[ ] Mobile access
+[ ] Email notifications
+[ ] Vendor portal/API integration 
+
+
+
+```

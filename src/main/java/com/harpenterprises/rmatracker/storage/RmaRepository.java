@@ -11,9 +11,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 public class RmaRepository {
 
@@ -75,6 +77,13 @@ public class RmaRepository {
                         rmaRecord.getRepairItems()
                 );
 
+                insertStatusHistory(
+                        connection,
+                        rmaId,
+                        null,
+                        rmaRecord.getStatus()
+                );
+
                 connection.commit();
 
             } catch (SQLException exception) {
@@ -108,6 +117,11 @@ public class RmaRepository {
                 long rmaId = findRmaId(
                         connection,
                         rmaRecord.getRmaNumber()
+                );
+
+                Status previousStatus = findCurrentStatus(
+                        connection,
+                        rmaId
                 );
 
                 try (PreparedStatement statement =
@@ -170,6 +184,18 @@ public class RmaRepository {
                         rmaId,
                         rmaRecord.getRepairItems()
                 );
+
+                if (!Objects.equals(
+                        previousStatus,
+                        rmaRecord.getStatus()
+                )) {
+                    insertStatusHistory(
+                            connection,
+                            rmaId,
+                            previousStatus,
+                            rmaRecord.getStatus()
+                    );
+                }
 
                 connection.commit();
 
@@ -576,6 +602,92 @@ public class RmaRepository {
         }
 
         return repairItems;
+    }
+
+    private Status findCurrentStatus(
+            Connection connection,
+            long rmaId
+    ) throws SQLException {
+
+        String sql = """
+                SELECT status
+                FROM rmas
+                WHERE id = ?
+                """;
+
+        try (PreparedStatement statement =
+                     connection.prepareStatement(sql)) {
+
+            statement.setLong(1, rmaId);
+
+            try (ResultSet resultSet =
+                         statement.executeQuery()) {
+
+                if (!resultSet.next()) {
+                    throw new SQLException(
+                            "No RMA was found with ID: "
+                                    + rmaId
+                    );
+                }
+
+                return Status.valueOf(
+                        resultSet.getString("status")
+                );
+            }
+        }
+    }
+
+    private void insertStatusHistory(
+            Connection connection,
+            long rmaId,
+            Status oldStatus,
+            Status newStatus
+    ) throws SQLException {
+
+        if (newStatus == null) {
+            throw new SQLException(
+                    "A status-history entry requires a new status."
+            );
+        }
+
+        String sql = """
+                INSERT INTO status_history (
+                    rma_id,
+                    old_status,
+                    new_status,
+                    changed_at
+                )
+                VALUES (?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement statement =
+                     connection.prepareStatement(sql)) {
+
+            statement.setLong(1, rmaId);
+
+            if (oldStatus == null) {
+                statement.setNull(2, Types.VARCHAR);
+            } else {
+                statement.setString(
+                        2,
+                        oldStatus.name()
+                );
+            }
+
+            statement.setString(
+                    3,
+                    newStatus.name()
+            );
+
+            statement.setString(
+                    4,
+                    LocalDateTime.now()
+                            .withNano(0)
+                            .toString()
+            );
+
+            statement.executeUpdate();
+        }
     }
 
     private void setRmaInsertValues(

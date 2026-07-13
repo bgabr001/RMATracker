@@ -74,6 +74,43 @@ public final class DatabaseManager {
                     )
                     """);
 
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS status_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rma_id INTEGER NOT NULL,
+                        old_status TEXT,
+                        new_status TEXT NOT NULL,
+                        changed_at TEXT NOT NULL,
+                        FOREIGN KEY (rma_id)
+                            REFERENCES rmas(id)
+                            ON DELETE CASCADE
+                    )
+                    """);
+
+            /*
+             * Give RMAs created before status history existed
+             * one initial history entry using their current status.
+             */
+            statement.execute("""
+                    INSERT INTO status_history (
+                        rma_id,
+                        old_status,
+                        new_status,
+                        changed_at
+                    )
+                    SELECT
+                        r.id,
+                        NULL,
+                        r.status,
+                        COALESCE(r.created_at, CURRENT_TIMESTAMP)
+                    FROM rmas r
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM status_history h
+                        WHERE h.rma_id = r.id
+                    )
+                    """);
+
             /*
              * This handles databases that were created before the
              * version column was added.
@@ -110,6 +147,16 @@ public final class DatabaseManager {
             statement.execute("""
                     CREATE INDEX IF NOT EXISTS idx_items_serial
                     ON repair_items(serial_number)
+                    """);
+
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_history_rma_id
+                    ON status_history(rma_id)
+                    """);
+
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_history_changed_at
+                    ON status_history(changed_at)
                     """);
 
             System.out.println(
