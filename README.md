@@ -1146,7 +1146,7 @@ Excel integration, user accounts, server access, and mobile access are not requi
 ```text
 [x] Step 1: Create the project
 [x] Step 2: Create the project structure
-[ ] Step 3: Create the core model classes
+[x] Step 3: Create the core model classes
 [ ] Step 4: Build the main application window
 [ ] Step 5: Build the New/Edit RMA form
 [ ] Step 6: Add SQLite
