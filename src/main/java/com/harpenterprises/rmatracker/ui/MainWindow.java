@@ -4,6 +4,7 @@ import com.harpenterprises.rmatracker.model.RepairItem;
 import com.harpenterprises.rmatracker.model.RmaRecord;
 import com.harpenterprises.rmatracker.model.RmaSearchCriteria;
 import com.harpenterprises.rmatracker.model.Status;
+import com.harpenterprises.rmatracker.service.BackupService;
 import com.harpenterprises.rmatracker.service.RmaSearchService;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
 
@@ -20,6 +21,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -90,6 +93,7 @@ public class MainWindow extends JFrame {
      */
     private final RmaRepository repository;
     private final RmaSearchService searchService;
+    private final BackupService backupService;
 
     private final List<RmaRecord> allRmaRecords;
     private final List<RmaRecord> displayedRmaRecords;
@@ -103,6 +107,7 @@ public class MainWindow extends JFrame {
     public MainWindow() {
         repository = new RmaRepository();
         searchService = new RmaSearchService();
+        backupService = new BackupService();
 
         allRmaRecords = new ArrayList<>();
         displayedRmaRecords = new ArrayList<>();
@@ -301,6 +306,7 @@ public class MainWindow extends JFrame {
          * Window layout.
          */
         setLayout(new BorderLayout(10, 10));
+        setJMenuBar(createMenuBar());
 
         add(
                 createHeaderPanel(),
@@ -334,6 +340,39 @@ public class MainWindow extends JFrame {
         );
 
         refreshRmaTable(null);
+    }
+
+    private JMenuBar createMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+
+        JMenu fileMenu = new JMenu("File");
+        fileMenu.setMnemonic(KeyEvent.VK_F);
+
+        JMenuItem backupItem = new JMenuItem("Backup Database...");
+        backupItem.setMnemonic(KeyEvent.VK_B);
+        backupItem.setAccelerator(
+                KeyStroke.getKeyStroke(
+                        KeyEvent.VK_B,
+                        Toolkit.getDefaultToolkit()
+                                .getMenuShortcutKeyMaskEx()
+                )
+        );
+        backupItem.addActionListener(event -> backupDatabase());
+
+        JMenuItem restoreItem = new JMenuItem("Restore Database...");
+        restoreItem.setMnemonic(KeyEvent.VK_R);
+        restoreItem.addActionListener(event -> restoreDatabase());
+
+        JMenuItem exitItem = new JMenuItem("Exit");
+        exitItem.addActionListener(event -> exitApplication());
+
+        fileMenu.add(backupItem);
+        fileMenu.add(restoreItem);
+        fileMenu.addSeparator();
+        fileMenu.add(exitItem);
+
+        menuBar.add(fileMenu);
+        return menuBar;
     }
 
     private JPanel createHeaderPanel() {
@@ -1725,6 +1764,125 @@ public class MainWindow extends JFrame {
                     "The RMA could not be deleted.",
                     exception
             );
+        }
+    }
+
+    private void backupDatabase() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose Backup Folder");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setAcceptAllFileFilterUsed(false);
+
+        int result = chooser.showSaveDialog(this);
+
+        if (result != JFileChooser.APPROVE_OPTION
+                || chooser.getSelectedFile() == null) {
+            return;
+        }
+
+        try {
+            Path backupPath = backupService.createBackup(
+                    chooser.getSelectedFile().toPath()
+            );
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The database backup was created successfully.\n\n"
+                            + backupPath.toAbsolutePath(),
+                    "Backup Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+
+        } catch (IOException | SQLException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The database backup could not be created.\n\n"
+                            + exception.getMessage(),
+                    "Backup Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+
+            exception.printStackTrace();
+        }
+    }
+
+    private void restoreDatabase() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Select RMA Database Backup");
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+
+        int result = chooser.showOpenDialog(this);
+
+        if (result != JFileChooser.APPROVE_OPTION
+                || chooser.getSelectedFile() == null) {
+            return;
+        }
+
+        Path selectedBackup = chooser
+                .getSelectedFile()
+                .toPath();
+
+        try {
+            backupService.validateBackup(selectedBackup);
+
+        } catch (IOException | SQLException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The selected file cannot be restored.\n\n"
+                            + exception.getMessage(),
+                    "Invalid Backup",
+                    JOptionPane.ERROR_MESSAGE
+            );
+
+            return;
+        }
+
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Restoring this backup will replace all current RMA data.\n\n"
+                        + "A safety backup of the current database will be "
+                        + "created automatically.\n\n"
+                        + "Continue with the restore?",
+                "Restore Database",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        try {
+            Path safetyBackup = backupService.restoreBackup(
+                    selectedBackup
+            );
+
+            clearAllFilters();
+            refreshRmaTable(null);
+
+            String safetyMessage = safetyBackup == null
+                    ? "No previous database existed, so no safety backup was needed."
+                    : "Safety backup created at:\n"
+                      + safetyBackup.toAbsolutePath();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The database was restored successfully.\n\n"
+                            + safetyMessage,
+                    "Restore Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+
+        } catch (IOException | SQLException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The database could not be restored.\n\n"
+                            + exception.getMessage(),
+                    "Restore Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+
+            exception.printStackTrace();
         }
     }
 

@@ -1163,7 +1163,7 @@ Phase 2 User Experience
 [x] Step 9:  Add status history
 [x] Step 10: Add confirmations and error handling
 [x] Step 11: Add testing
-[ ] Step 12: Improve the application design
+[x] Step 12: Improve the application design (maybe version 3.0)
 [ ] Step 13: Add backup and restore
 [ ] Step 14: Package the application
 ```

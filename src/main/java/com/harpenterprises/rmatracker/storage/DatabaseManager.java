@@ -22,6 +22,14 @@ public final class DatabaseManager {
         // Prevent this utility class from being instantiated.
     }
 
+    /**
+     * Returns the location of the active SQLite database file.
+     */
+    public static File getDatabaseFile() {
+        createDatabaseFolder();
+        return new File(DATABASE_FOLDER, DATABASE_FILE);
+    }
+
     public static Connection getConnection() throws SQLException {
         createDatabaseFolder();
 
