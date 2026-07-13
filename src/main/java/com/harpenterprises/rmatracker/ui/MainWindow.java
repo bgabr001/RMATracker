@@ -3,11 +3,11 @@ package com.harpenterprises.rmatracker.ui;
 import com.harpenterprises.rmatracker.model.RepairItem;
 import com.harpenterprises.rmatracker.model.RmaRecord;
 import com.harpenterprises.rmatracker.model.RmaSearchCriteria;
+import com.harpenterprises.rmatracker.model.ShippingInfo;
 import com.harpenterprises.rmatracker.model.Status;
 import com.harpenterprises.rmatracker.service.BackupService;
 import com.harpenterprises.rmatracker.service.RmaSearchService;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
-import com.harpenterprises.rmatracker.storage.DatabaseManager;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -69,8 +69,8 @@ public class MainWindow extends JFrame {
     private final JLabel selectedDateSentValue;
     private final JLabel selectedDateReceivedValue;
     private final JLabel selectedStatusValue;
-    private final JLabel selectedOutgoingTrackingValue;
-    private final JLabel selectedReturnTrackingValue;
+    private final JTextArea selectedSentShippingValue;
+    private final JTextArea selectedReturnShippingValue;
     private final JTextArea selectedNotesArea;
 
     /*
@@ -116,7 +116,7 @@ public class MainWindow extends JFrame {
 
         rebuildingFilterChoices = false;
 
-        setTitle("RMA Repair Tracker");
+        setTitle("RMA Tracker");
         setSize(1450, 900);
         setMinimumSize(new Dimension(1100, 720));
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -184,8 +184,11 @@ public class MainWindow extends JFrame {
         selectedDateSentValue = new JLabel("-");
         selectedDateReceivedValue = new JLabel("-");
         selectedStatusValue = new JLabel("-");
-        selectedOutgoingTrackingValue = new JLabel("-");
-        selectedReturnTrackingValue = new JLabel("-");
+        selectedSentShippingValue = createReadOnlyTextArea(3, 22);
+        selectedReturnShippingValue = createReadOnlyTextArea(3, 22);
+
+        selectedSentShippingValue.setText("-");
+        selectedReturnShippingValue.setText("-");
 
         selectedNotesArea = new JTextArea(4, 30);
         selectedNotesArea.setEditable(false);
@@ -204,8 +207,8 @@ public class MainWindow extends JFrame {
                 "Date Sent",
                 "Date Received",
                 "Status",
-                "Outgoing Tracking",
-                "Return Tracking",
+                "Sent Shipping",
+                "Return Shipping",
                 "Items",
                 "Notes"
         };
@@ -305,6 +308,21 @@ public class MainWindow extends JFrame {
                 Object.class,
                 matchingRenderer
         );
+
+        /*
+         * Shipping columns use a multiline renderer so every shipment
+         * appears on its own line.
+         */
+        MultilineTableCellRenderer shippingRenderer =
+                new MultilineTableCellRenderer();
+
+        rmaTable.getColumnModel()
+                .getColumn(4)
+                .setCellRenderer(shippingRenderer);
+
+        rmaTable.getColumnModel()
+                .getColumn(5)
+                .setCellRenderer(shippingRenderer);
 
         /*
          * Window layout.
@@ -407,7 +425,7 @@ public class MainWindow extends JFrame {
         );
 
         JLabel titleLabel =
-                new JLabel("RMA Repair Tracker");
+                new JLabel("RMA Tracker");
 
         titleLabel.setFont(
                 new Font(
@@ -637,16 +655,20 @@ public class MainWindow extends JFrame {
                 panel,
                 constraints,
                 row++,
-                "Outgoing Tracking:",
-                selectedOutgoingTrackingValue
+                "Sent Shipping:",
+                createShippingScrollPane(
+                        selectedSentShippingValue
+                )
         );
 
         addDetailRow(
                 panel,
                 constraints,
                 row++,
-                "Return Tracking:",
-                selectedReturnTrackingValue
+                "Return Shipping:",
+                createShippingScrollPane(
+                        selectedReturnShippingValue
+                )
         );
 
         constraints.gridx = 0;
@@ -683,7 +705,7 @@ public class MainWindow extends JFrame {
             GridBagConstraints constraints,
             int row,
             String labelText,
-            JLabel valueLabel
+            JComponent valueComponent
     ) {
         constraints.gridx = 0;
         constraints.gridy = row;
@@ -706,7 +728,38 @@ public class MainWindow extends JFrame {
         constraints.fill =
                 GridBagConstraints.HORIZONTAL;
 
-        panel.add(valueLabel, constraints);
+        panel.add(valueComponent, constraints);
+    }
+
+    private JTextArea createReadOnlyTextArea(
+            int rows,
+            int columns
+    ) {
+        JTextArea textArea =
+                new JTextArea(rows, columns);
+
+        textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        textArea.setFocusable(false);
+        textArea.setBackground(
+                UIManager.getColor("Panel.background")
+        );
+
+        return textArea;
+    }
+
+    private JScrollPane createShippingScrollPane(
+            JTextArea textArea
+    ) {
+        JScrollPane scrollPane =
+                new JScrollPane(textArea);
+
+        scrollPane.setPreferredSize(
+                new Dimension(230, 62)
+        );
+
+        return scrollPane;
     }
 
     private JPanel createBottomPanel() {
@@ -1227,13 +1280,13 @@ public class MainWindow extends JFrame {
                             formatValue(
                                     record.getStatus()
                             ),
-                            displayString(
-                                    record
-                                            .getOutgoingTrackingNumber()
+                            formatShippingInformation(
+                                    record,
+                                    false
                             ),
-                            displayString(
-                                    record
-                                            .getReturnTrackingNumber()
+                            formatShippingInformation(
+                                    record,
+                                    true
                             ),
                             itemCount,
                             displayString(
@@ -1241,7 +1294,57 @@ public class MainWindow extends JFrame {
                             )
                     }
             );
+
+            updateRmaRowHeight(
+                    rmaTableModel.getRowCount() - 1,
+                    record
+            );
         }
+    }
+
+    private void updateRmaRowHeight(
+            int modelRow,
+            RmaRecord record
+    ) {
+        int sentLines = countDisplayLines(
+                formatShippingInformation(
+                        record,
+                        false
+                )
+        );
+
+        int returnLines = countDisplayLines(
+                formatShippingInformation(
+                        record,
+                        true
+                )
+        );
+
+        int lineCount =
+                Math.max(sentLines, returnLines);
+
+        int preferredHeight =
+                Math.max(25, 20 * lineCount + 6);
+
+        int viewRow =
+                rmaTable.convertRowIndexToView(modelRow);
+
+        if (viewRow >= 0) {
+            rmaTable.setRowHeight(
+                    viewRow,
+                    preferredHeight
+            );
+        }
+    }
+
+    private int countDisplayLines(String value) {
+        if (value == null
+                || value.isBlank()
+                || "-".equals(value.trim())) {
+            return 1;
+        }
+
+        return value.split("\\R", -1).length;
     }
 
     private void rmaSelectionChanged(
@@ -1287,15 +1390,17 @@ public class MainWindow extends JFrame {
                 formatValue(record.getStatus())
         );
 
-        selectedOutgoingTrackingValue.setText(
-                displayString(
-                        record.getOutgoingTrackingNumber()
+        selectedSentShippingValue.setText(
+                formatShippingInformation(
+                        record,
+                        false
                 )
         );
 
-        selectedReturnTrackingValue.setText(
-                displayString(
-                        record.getReturnTrackingNumber()
+        selectedReturnShippingValue.setText(
+                formatShippingInformation(
+                        record,
+                        true
                 )
         );
 
@@ -1400,8 +1505,8 @@ public class MainWindow extends JFrame {
                         record.getDateSent(),
                         record.getDateReceived(),
                         record.getStatus(),
-                        record.getOutgoingTrackingNumber(),
-                        record.getReturnTrackingNumber(),
+                        formatShippingInformation(record, false),
+                        formatShippingInformation(record, true),
                         record.getNotes()
                 );
 
@@ -1629,8 +1734,8 @@ public class MainWindow extends JFrame {
         selectedDateSentValue.setText("-");
         selectedDateReceivedValue.setText("-");
         selectedStatusValue.setText("-");
-        selectedOutgoingTrackingValue.setText("-");
-        selectedReturnTrackingValue.setText("-");
+        selectedSentShippingValue.setText("-");
+        selectedReturnShippingValue.setText("-");
 
         selectedNotesArea.setText("");
 
@@ -2019,6 +2124,94 @@ public class MainWindow extends JFrame {
         exception.printStackTrace();
     }
 
+    /**
+     * Formats all shipping entries for either the sent or return direction.
+     */
+    private String formatShippingInformation(
+            RmaRecord record,
+            boolean returnShipping
+    ) {
+        if (record == null) {
+            return "-";
+        }
+
+        StringBuilder text = new StringBuilder();
+        List<ShippingInfo> shippingEntries =
+                record.getShippingInformation();
+
+        if (shippingEntries != null) {
+            for (ShippingInfo shippingInfo : shippingEntries) {
+                if (shippingInfo == null) {
+                    continue;
+                }
+
+                boolean isReturn =
+                        shippingInfo.getDirection() != null
+                                && shippingInfo
+                                .getDirection()
+                                .name()
+                                .toUpperCase(Locale.ROOT)
+                                .contains("RETURN");
+
+                if (isReturn != returnShipping) {
+                    continue;
+                }
+
+                String carrier =
+                        shippingInfo.getCarrier() == null
+                                ? ""
+                                : shippingInfo.getCarrier().trim();
+
+                String trackingNumber =
+                        shippingInfo.getTrackingNumber() == null
+                                ? ""
+                                : shippingInfo
+                                  .getTrackingNumber()
+                                  .trim();
+
+                if (carrier.isEmpty()
+                        && trackingNumber.isEmpty()) {
+                    continue;
+                }
+
+                if (text.length() > 0) {
+                    text.append("\n");
+                }
+
+                if (!carrier.isEmpty()) {
+                    text.append(carrier);
+                }
+
+                if (!carrier.isEmpty()
+                        && !trackingNumber.isEmpty()) {
+                    text.append(": ");
+                }
+
+                if (!trackingNumber.isEmpty()) {
+                    text.append(trackingNumber);
+                }
+            }
+        }
+
+        /*
+         * Fallback for older RMAs that still only have the legacy fields.
+         */
+        if (text.length() == 0) {
+            String legacyValue = returnShipping
+                    ? record.getReturnTrackingNumber()
+                    : record.getOutgoingTrackingNumber();
+
+            if (legacyValue != null
+                    && !legacyValue.isBlank()) {
+                return legacyValue.trim();
+            }
+        }
+
+        return text.length() == 0
+                ? "-"
+                : text.toString();
+    }
+
     private String normalize(
             String value
     ) {
@@ -2062,6 +2255,58 @@ public class MainWindow extends JFrame {
 
         if (choice == JOptionPane.YES_OPTION) {
             dispose();
+        }
+    }
+
+    private static class MultilineTableCellRenderer
+            extends JTextArea
+            implements javax.swing.table.TableCellRenderer {
+
+        private MultilineTableCellRenderer() {
+            setLineWrap(true);
+            setWrapStyleWord(true);
+            setOpaque(true);
+            setBorder(
+                    BorderFactory.createEmptyBorder(
+                            3,
+                            4,
+                            3,
+                            4
+                    )
+            );
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            setText(
+                    value == null
+                            ? ""
+                            : value.toString()
+            );
+
+            if (isSelected) {
+                setForeground(
+                        table.getSelectionForeground()
+                );
+
+                setBackground(
+                        table.getSelectionBackground()
+                );
+            } else {
+                setForeground(table.getForeground());
+                setBackground(table.getBackground());
+            }
+
+            setFont(table.getFont());
+
+            return this;
         }
     }
 
