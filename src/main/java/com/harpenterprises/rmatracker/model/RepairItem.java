@@ -6,6 +6,7 @@ public class RepairItem {
     private String serialNumber;
     private String version;
     private String problemDescription;
+    private String repairDescription;
 
     public RepairItem(){
     }
@@ -13,12 +14,14 @@ public class RepairItem {
     public RepairItem(String county,
                       String machineType,
                       String serialNumber,
+                      String version,
                       String problemDescription,
-                      String version) {
+                      String repairDescription) {
         this.county = county;
         this.machineType = machineType;
         this.serialNumber = serialNumber;
         this.problemDescription = problemDescription;
+        this.repairDescription = repairDescription;
         this.version = version;
     }
     public String getCounty() {
@@ -51,6 +54,14 @@ public class RepairItem {
 
     public void setProblemDescription(String problemDescription) {
         this.problemDescription = problemDescription;
+    }
+
+    public String getRepairDescription() {
+        return repairDescription;
+    }
+
+    public void setRepairDescription(String repairDescription) {
+        this.repairDescription = repairDescription;
     }
 
     public String getVersion() {

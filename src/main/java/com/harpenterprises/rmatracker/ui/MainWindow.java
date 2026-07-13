@@ -1,13 +1,19 @@
 package com.harpenterprises.rmatracker.ui;
 
+import com.harpenterprises.rmatracker.model.RmaRecord;
+import com.harpenterprises.rmatracker.storage.RmaRepository;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
-
-import com.harpenterprises.rmatracker.ui.RmaFormDialog;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Optional;
+import java.util.regex.Pattern;
 
 public class MainWindow extends JFrame {
+
     private final JTextField searchField;
     private final JTable rmaTable;
     private final DefaultTableModel tableModel;
@@ -19,7 +25,11 @@ public class MainWindow extends JFrame {
     private final JButton refreshButton;
     private final JButton exitButton;
 
+    private final RmaRepository repository;
+
     public MainWindow() {
+        repository = new RmaRepository();
+
         setTitle("RMA Repair Tracker");
         setSize(1200, 650);
         setMinimumSize(new Dimension(900, 500));
@@ -34,10 +44,10 @@ public class MainWindow extends JFrame {
         refreshButton = new JButton("Refresh");
         exitButton = new JButton("Exit");
 
-        String[] columnsNames = {
-                "RMA Number," ,
-                "Date Sent",
-                "Date Recieved",
+        String[] columnNames = {
+                "RMA Number",
+                "Date Sent (YYYY-MM-DD)",
+                "Date Received (YYYY-MM-DD)",
                 "Status",
                 "Outgoing Tracking",
                 "Return Tracking",
@@ -45,24 +55,37 @@ public class MainWindow extends JFrame {
                 "Notes"
         };
 
-        tableModel = new DefaultTableModel(columnsNames, 0){
+        tableModel = new DefaultTableModel(
+                columnNames,
+                0
+        ) {
             @Override
-            public boolean isCellEditable(int row, int column) {
+            public boolean isCellEditable(
+                    int row,
+                    int column
+            ) {
                 return false;
             }
         };
 
-
-
         rmaTable = new JTable(tableModel);
-        rmaTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        rmaTable.setSelectionMode(
+                ListSelectionModel.SINGLE_SELECTION
+        );
         rmaTable.setRowHeight(25);
-        rmaTable.getTableHeader().setReorderingAllowed(false);
-        rmaTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        rmaTable
+                .getTableHeader()
+                .setReorderingAllowed(false);
+
+        rmaTable.setAutoResizeMode(
+                JTable.AUTO_RESIZE_OFF
+        );
 
         configureColumnWidths();
 
-        tableSorter = new TableRowSorter<>(tableModel);
+        tableSorter =
+                new TableRowSorter<>(tableModel);
+
         rmaTable.setRowSorter(tableSorter);
 
         setLayout(new BorderLayout(10, 10));
@@ -75,36 +98,69 @@ public class MainWindow extends JFrame {
         addSearchFunctionality();
         addDoubleClickAction();
 
-        loadSampleData();
-
+        refreshRmaTable();
     }
 
     private JPanel createHeaderPanel() {
-        JPanel headerPanel = new JPanel(new BorderLayout(10, 10));
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 0, 15));
+        JPanel headerPanel =
+                new JPanel(new BorderLayout(10, 10));
 
-        JLabel titleLabel = new JLabel("RMA Repair Tracker");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 26));
+        headerPanel.setBorder(
+                BorderFactory.createEmptyBorder(
+                        15,
+                        15,
+                        0,
+                        15
+                )
+        );
 
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JLabel titleLabel =
+                new JLabel("RMA Repair Tracker");
 
-        JLabel searchLabel = new JLabel("Search:");
-        searchPanel.add(searchLabel);
+        titleLabel.setFont(
+                new Font(
+                        "Arial",
+                        Font.BOLD,
+                        26
+                )
+        );
+
+        JPanel searchPanel =
+                new JPanel(
+                        new FlowLayout(FlowLayout.RIGHT)
+                );
+
+        searchPanel.add(new JLabel("Search:"));
         searchPanel.add(searchField);
 
-        headerPanel.add(titleLabel, BorderLayout.WEST);
-        headerPanel.add(searchPanel, BorderLayout.EAST);
+        headerPanel.add(
+                titleLabel,
+                BorderLayout.WEST
+        );
+
+        headerPanel.add(
+                searchPanel,
+                BorderLayout.EAST
+        );
 
         return headerPanel;
     }
 
     private JScrollPane createTablePanel() {
-        JScrollPane scrollPane = new JScrollPane(rmaTable);
+        JScrollPane scrollPane =
+                new JScrollPane(rmaTable);
 
         scrollPane.setBorder(
                 BorderFactory.createCompoundBorder(
-                        BorderFactory.createEmptyBorder(10, 15, 10, 15),
-                        BorderFactory.createLineBorder(Color.GRAY)
+                        BorderFactory.createEmptyBorder(
+                                10,
+                                15,
+                                10,
+                                15
+                        ),
+                        BorderFactory.createLineBorder(
+                                Color.GRAY
+                        )
                 )
         );
 
@@ -112,227 +168,386 @@ public class MainWindow extends JFrame {
     }
 
     private JPanel createButtonPanel() {
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        JPanel buttonPanel =
+                new JPanel(
+                        new FlowLayout(
+                                FlowLayout.LEFT,
+                                10,
+                                10
+                        )
+                );
 
         buttonPanel.setBorder(
-                BorderFactory.createEmptyBorder(0, 10, 10, 10)
+                BorderFactory.createEmptyBorder(
+                        0,
+                        10,
+                        10,
+                        10
+                )
         );
 
         buttonPanel.add(newRmaButton);
         buttonPanel.add(openRmaButton);
         buttonPanel.add(deleteRmaButton);
         buttonPanel.add(refreshButton);
-
-        buttonPanel.add(Box.createHorizontalStrut(20));
+        buttonPanel.add(
+                Box.createHorizontalStrut(20)
+        );
         buttonPanel.add(exitButton);
 
         return buttonPanel;
     }
 
     private void configureColumnWidths() {
-        rmaTable.getColumnModel().getColumn(0).setPreferredWidth(120);
-        rmaTable.getColumnModel().getColumn(1).setPreferredWidth(100);
-        rmaTable.getColumnModel().getColumn(2).setPreferredWidth(110);
-        rmaTable.getColumnModel().getColumn(3).setPreferredWidth(130);
-        rmaTable.getColumnModel().getColumn(4).setPreferredWidth(180);
-        rmaTable.getColumnModel().getColumn(5).setPreferredWidth(180);
-        rmaTable.getColumnModel().getColumn(6).setPreferredWidth(100);
-        rmaTable.getColumnModel().getColumn(7).setPreferredWidth(300);
+        rmaTable
+                .getColumnModel()
+                .getColumn(0)
+                .setPreferredWidth(120);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(1)
+                .setPreferredWidth(150);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(2)
+                .setPreferredWidth(170);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(3)
+                .setPreferredWidth(150);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(4)
+                .setPreferredWidth(180);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(5)
+                .setPreferredWidth(180);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(6)
+                .setPreferredWidth(100);
+
+        rmaTable
+                .getColumnModel()
+                .getColumn(7)
+                .setPreferredWidth(300);
     }
 
     private void addButtonActions() {
-        newRmaButton.addActionListener(event -> openNewRmaWindow());
+        newRmaButton.addActionListener(
+                event -> openNewRmaWindow()
+        );
 
-        openRmaButton.addActionListener(event -> openSelectedRma());
+        openRmaButton.addActionListener(
+                event -> openSelectedRma()
+        );
 
-        deleteRmaButton.addActionListener(event -> deleteSelectedRma());
+        deleteRmaButton.addActionListener(
+                event -> deleteSelectedRma()
+        );
 
-        refreshButton.addActionListener(event -> refreshRmaTable());
+        refreshButton.addActionListener(
+                event -> refreshRmaTable()
+        );
 
-        exitButton.addActionListener(event -> exitApplication());
+        exitButton.addActionListener(
+                event -> exitApplication()
+        );
     }
 
-
     private void addSearchFunctionality() {
-        searchField.getDocument().addDocumentListener(
-                new javax.swing.event.DocumentListener() {
+        searchField
+                .getDocument()
+                .addDocumentListener(
+                        new javax.swing.event.DocumentListener() {
 
-                    @Override
-                    public void insertUpdate(
-                            javax.swing.event.DocumentEvent event
-                    ) {
-                        filterTable();
-                    }
+                            @Override
+                            public void insertUpdate(
+                                    javax.swing.event.DocumentEvent event
+                            ) {
+                                filterTable();
+                            }
 
-                    @Override
-                    public void removeUpdate(
-                            javax.swing.event.DocumentEvent event
-                    ) {
-                        filterTable();
-                    }
+                            @Override
+                            public void removeUpdate(
+                                    javax.swing.event.DocumentEvent event
+                            ) {
+                                filterTable();
+                            }
 
-                    @Override
-                    public void changedUpdate(
-                            javax.swing.event.DocumentEvent event
-                    ) {
-                        filterTable();
-                    }
-                }
-        );
+                            @Override
+                            public void changedUpdate(
+                                    javax.swing.event.DocumentEvent event
+                            ) {
+                                filterTable();
+                            }
+                        }
+                );
     }
 
     private void filterTable() {
-        String searchText = searchField.getText().trim();
+        String searchText =
+                searchField.getText().trim();
 
         if (searchText.isEmpty()) {
             tableSorter.setRowFilter(null);
-        } else {
-            tableSorter.setRowFilter(
-                    RowFilter.regexFilter(
-                            "(?i)" + java.util.regex.Pattern.quote(searchText)
-                    )
-            );
+            return;
         }
+
+        tableSorter.setRowFilter(
+                RowFilter.regexFilter(
+                        "(?i)"
+                                + Pattern.quote(searchText)
+                )
+        );
     }
 
     private void addDoubleClickAction() {
-        rmaTable.addMouseListener(new java.awt.event.MouseAdapter() {
+        rmaTable.addMouseListener(
+                new java.awt.event.MouseAdapter() {
 
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent event) {
-                if (event.getClickCount() == 2) {
-                    openSelectedRma();
+                    @Override
+                    public void mouseClicked(
+                            java.awt.event.MouseEvent event
+                    ) {
+                        if (event.getClickCount() == 2) {
+                            openSelectedRma();
+                        }
+                    }
                 }
-            }
-        });
+        );
     }
 
     private void openNewRmaWindow() {
-        RmaFormDialog dialog = new RmaFormDialog(this);
+        RmaFormDialog dialog =
+                new RmaFormDialog(this);
+
         dialog.setVisible(true);
+
+        if (dialog.isSaved()) {
+            refreshRmaTable();
+        }
     }
 
     private void openSelectedRma() {
-        int selectedViewRow = rmaTable.getSelectedRow();
+        String rmaNumber =
+                getSelectedRmaNumber();
 
-        if (selectedViewRow == -1) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Please select an RMA to open.",
-                    "No RMA Selected",
-                    JOptionPane.WARNING_MESSAGE
-            );
-
+        if (rmaNumber == null) {
             return;
         }
 
-        int selectedModelRow =
-                rmaTable.convertRowIndexToModel(selectedViewRow);
+        try {
+            Optional<RmaRecord> result =
+                    repository.findByRmaNumber(
+                            rmaNumber
+                    );
 
-        String rmaNumber = tableModel
-                .getValueAt(selectedModelRow, 0)
-                .toString();
+            if (result.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "The selected RMA could not be found.",
+                        "RMA Not Found",
+                        JOptionPane.WARNING_MESSAGE
+                );
 
-        JOptionPane.showMessageDialog(
-                this,
-                "Opening RMA: " + rmaNumber
-                        + "\n\nThe RMA details window will be added later.",
-                "Open RMA",
-                JOptionPane.INFORMATION_MESSAGE
-        );
+                refreshRmaTable();
+                return;
+            }
+
+            RmaFormDialog dialog =
+                    new RmaFormDialog(
+                            this,
+                            result.get()
+                    );
+
+            dialog.setVisible(true);
+
+            if (dialog.isSaved()) {
+                refreshRmaTable();
+            }
+
+        } catch (SQLException exception) {
+            showDatabaseError(
+                    "The RMA could not be opened.",
+                    exception
+            );
+        }
     }
 
     private void deleteSelectedRma() {
-        int selectedViewRow = rmaTable.getSelectedRow();
+        String rmaNumber =
+                getSelectedRmaNumber();
+
+        if (rmaNumber == null) {
+            return;
+        }
+
+        int choice =
+                JOptionPane.showConfirmDialog(
+                        this,
+                        "Are you sure you want to delete RMA "
+                                + rmaNumber
+                                + "?\n\n"
+                                + "Its repair items will also be deleted.",
+                        "Delete RMA",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        try {
+            boolean deleted =
+                    repository.delete(rmaNumber);
+
+            if (deleted) {
+                refreshRmaTable();
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        "RMA "
+                                + rmaNumber
+                                + " was deleted.",
+                        "RMA Deleted",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            } else {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "The selected RMA could not be found.",
+                        "RMA Not Found",
+                        JOptionPane.WARNING_MESSAGE
+                );
+            }
+
+        } catch (SQLException exception) {
+            showDatabaseError(
+                    "The RMA could not be deleted.",
+                    exception
+            );
+        }
+    }
+
+    private String getSelectedRmaNumber() {
+        int selectedViewRow =
+                rmaTable.getSelectedRow();
 
         if (selectedViewRow == -1) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Please select an RMA to delete.",
+                    "Please select an RMA.",
                     "No RMA Selected",
                     JOptionPane.WARNING_MESSAGE
             );
 
-            return;
+            return null;
         }
 
         int selectedModelRow =
-                rmaTable.convertRowIndexToModel(selectedViewRow);
+                rmaTable.convertRowIndexToModel(
+                        selectedViewRow
+                );
 
-        String rmaNumber = tableModel
-                .getValueAt(selectedModelRow, 0)
-                .toString();
+        Object value =
+                tableModel.getValueAt(
+                        selectedModelRow,
+                        0
+                );
 
-        int choice = JOptionPane.showConfirmDialog(
-                this,
-                "Are you sure you want to delete RMA "
-                        + rmaNumber + "?",
-                "Delete RMA",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE
-        );
-
-        if (choice == JOptionPane.YES_OPTION) {
-            tableModel.removeRow(selectedModelRow);
-        }
-
+        return value == null
+                ? null
+                : value.toString();
     }
 
     private void refreshRmaTable() {
+        try {
+            List<RmaRecord> records =
+                    repository.findAll();
+
+            tableModel.setRowCount(0);
+
+            for (RmaRecord record : records) {
+                tableModel.addRow(
+                        new Object[]{
+                                record.getRmaNumber(),
+                                formatValue(
+                                        record.getDateSent()
+                                ),
+                                formatValue(
+                                        record.getDateReceived()
+                                ),
+                                record.getStatus(),
+                                emptyIfNull(
+                                        record
+                                                .getOutgoingTrackingNumber()
+                                ),
+                                emptyIfNull(
+                                        record
+                                                .getReturnTrackingNumber()
+                                ),
+                                record
+                                        .getRepairItems()
+                                        .size(),
+                                emptyIfNull(
+                                        record.getNotes()
+                                )
+                        }
+                );
+            }
+
+        } catch (SQLException exception) {
+            showDatabaseError(
+                    "The RMA table could not be loaded.",
+                    exception
+            );
+        }
+    }
+
+    private Object formatValue(Object value) {
+        return value == null ? "" : value;
+    }
+
+    private String emptyIfNull(String value) {
+        return value == null ? "" : value;
+    }
+
+    private void showDatabaseError(
+            String message,
+            SQLException exception
+    ) {
         JOptionPane.showMessageDialog(
                 this,
-                "The RMA table has been refreshed.",
-                "Refresh",
-                JOptionPane.INFORMATION_MESSAGE
+                message
+                        + "\n\n"
+                        + exception.getMessage(),
+                "Database Error",
+                JOptionPane.ERROR_MESSAGE
         );
+
+        exception.printStackTrace();
     }
 
     private void exitApplication() {
-        int choice = JOptionPane.showConfirmDialog(
-                this,
-                "Are you sure you want to exit?",
-                "Exit RMA Tracker",
-                JOptionPane.YES_NO_OPTION
-        );
+        int choice =
+                JOptionPane.showConfirmDialog(
+                        this,
+                        "Are you sure you want to exit?",
+                        "Exit RMA Tracker",
+                        JOptionPane.YES_NO_OPTION
+                );
 
         if (choice == JOptionPane.YES_OPTION) {
             dispose();
         }
     }
-
-    private void loadSampleData() {
-        tableModel.addRow(new Object[]{
-                "RMA-2026-001",
-                "2026-07-01",
-                "",
-                "SENT",
-                "1Z123456789",
-                "",
-                3,
-                "Waiting for repair"
-        });
-
-        tableModel.addRow(new Object[]{
-                "RMA-2026-002",
-                "2026-06-20",
-                "2026-07-08",
-                "COMPLETE",
-                "1Z987654321",
-                "1Z456789123",
-                2,
-                "All machines returned"
-        });
-
-        tableModel.addRow(new Object[]{
-                "RMA-2026-003",
-                "2026-07-09",
-                "",
-                "IN_PROGRESS",
-                "1Z555666777",
-                "",
-                4,
-                "Vendor is currently repairing machines"
-        });
-    }
-
 }

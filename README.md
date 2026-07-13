@@ -1148,11 +1148,11 @@ Excel integration, user accounts, server access, and mobile access are not requi
 [x] Step 2: Create the project structure
 [x] Step 3: Create the core model classes
 [x] Step 4: Build the main application window
-[ ] Step 5: Build the New/Edit RMA form
-[ ] Step 6: Add SQLite
-[ ] Step 7: Create database tables
-[ ] Step 8: Create repository classes
-[ ] Step 9: Connect the GUI to the database
+[x] Step 5: Build the New/Edit RMA form
+[x] Step 6: Add SQLite
+[x] Step 7: Create database tables
+[x] Step 8: Create repository classes
+[x] Step 9: Connect the GUI to the database
 [ ] Step 10: Add search and filtering
 [ ] Step 11: Improve status tracking
 [ ] Step 12: Add status history

@@ -10,19 +10,15 @@ repositories {
     mavenCentral()
 }
 
-application {
-    mainClass = 'com.harpenterprises.rmatracker.Main'
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
 dependencies {
+    implementation 'org.xerial:sqlite-jdbc:3.53.2.0'
+
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+application {
+    mainClass = 'com.harpenterprises.rmatracker.Main'
 }
 
 test {
