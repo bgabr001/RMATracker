@@ -1144,23 +1144,27 @@ Excel integration, user accounts, server access, and mobile access are not requi
 # Current Progress
 
 ```text
+Phase 1 -- Foundation
 [x] Step 1: Create the project
 [x] Step 2: Create the project structure
 [x] Step 3: Create the core model classes
 [x] Step 4: Build the main application window
 [x] Step 5: Build the New/Edit RMA form
-[x] Step 6: Add SQLite
-[x] Step 7: Create database tables
-[x] Step 8: Create repository classes
-[x] Step 9: Connect the GUI to the database
-[ ] Step 10: Add search and filtering
-[ ] Step 11: Improve status tracking
-[ ] Step 12: Add status history
-[ ] Step 13: Add confirmations and error handling
-[ ] Step 14: Add testing
-[ ] Step 15: Improve the application design
-[ ] Step 16: Add backup and restore
-[ ] Step 17: Package the application
+[x] Step 6: Add SQLite Database Integration
+    [x] Database Setup
+    [x] Create database tables
+    [x] Create repository classes
+    [x] Connect the GUI to the database
+    
+Phase 2 User Experience
+[ ] Step 7:  Add search and filtering
+[ ] Step 8:  Improve status tracking
+[ ] Step 9:  Add status history
+[ ] Step 10: Add confirmations and error handling
+[ ] Step 11: Add testing
+[ ] Step 12: Improve the application design
+[ ] Step 13: Add backup and restore
+[ ] Step 14: Package the application
 ```
 
 ---
