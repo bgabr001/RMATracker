@@ -77,6 +77,7 @@ public class MainWindow extends JFrame {
      */
     private final JButton newRmaButton;
     private final JButton openRmaButton;
+    private final JButton viewReportButton;
     private final JButton statusHistoryButton;
     private final JButton deleteRmaButton;
     private final JButton refreshButton;
@@ -163,6 +164,7 @@ public class MainWindow extends JFrame {
          */
         newRmaButton = new JButton("New RMA");
         openRmaButton = new JButton("Open RMA");
+        viewReportButton = new JButton("View RMA Report");
         statusHistoryButton = new JButton("Status History");
         deleteRmaButton = new JButton("Delete RMA");
         refreshButton = new JButton("Refresh");
@@ -372,6 +374,20 @@ public class MainWindow extends JFrame {
         fileMenu.add(exitItem);
 
         menuBar.add(fileMenu);
+
+        JMenu reportsMenu = new JMenu("Reports");
+        reportsMenu.setMnemonic(KeyEvent.VK_P);
+
+        JMenuItem viewSelectedReportItem =
+                new JMenuItem("View Selected RMA Report");
+
+        viewSelectedReportItem.addActionListener(
+                event -> openSelectedRmaReport()
+        );
+
+        reportsMenu.add(viewSelectedReportItem);
+        menuBar.add(reportsMenu);
+
         return menuBar;
     }
 
@@ -713,6 +729,7 @@ public class MainWindow extends JFrame {
 
         buttons.add(newRmaButton);
         buttons.add(openRmaButton);
+        buttons.add(viewReportButton);
         buttons.add(statusHistoryButton);
         buttons.add(deleteRmaButton);
         buttons.add(refreshButton);
@@ -836,6 +853,10 @@ public class MainWindow extends JFrame {
 
         openRmaButton.addActionListener(
                 event -> openSelectedRma()
+        );
+
+        viewReportButton.addActionListener(
+                event -> openSelectedRmaReport()
         );
 
         statusHistoryButton.addActionListener(
@@ -1596,6 +1617,7 @@ public class MainWindow extends JFrame {
             boolean enabled
     ) {
         openRmaButton.setEnabled(enabled);
+        viewReportButton.setEnabled(enabled);
         statusHistoryButton.setEnabled(enabled);
         deleteRmaButton.setEnabled(enabled);
         repairItemsTable.setEnabled(enabled);
@@ -1666,6 +1688,30 @@ public class MainWindow extends JFrame {
         if (dialog.isSaved()) {
             refreshRmaTable(rmaNumber);
         }
+    }
+
+    private void openSelectedRmaReport() {
+        RmaRecord selectedRecord =
+                getSelectedRma();
+
+        if (selectedRecord == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please select an RMA to view its report.",
+                    "No RMA Selected",
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            return;
+        }
+
+        RmaReportPreviewWindow reportWindow =
+                new RmaReportPreviewWindow(
+                        this,
+                        selectedRecord
+                );
+
+        reportWindow.setVisible(true);
     }
 
     private void openSelectedRmaHistory() {

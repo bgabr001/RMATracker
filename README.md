@@ -1163,8 +1163,8 @@ Phase 2 User Experience
 [x] Step 9:  Add status history
 [x] Step 10: Add confirmations and error handling
 [x] Step 11: Add testing
-[x] Step 12: Improve the application design (maybe version 3.0)
-[ ] Step 13: Add backup and restore
+[ ] Step 12: Improve the application design (maybe version 3.0)
+[x] Step 13: Add backup and restore
 [ ] Step 14: Package the application
 ```
 
@@ -1190,10 +1190,65 @@ This will create the main RMA dashboard, table, buttons, search area, and summar
 [X] SQLite database
 [X] Status field (basic)
 
-2.0
-[ ] Export to Excel
-[ ] Export to PDF
-[ ] Printable RMA reports
+Version 2.0 – Reports & Export
+
+[x] Step 1: Create the RMA Report Preview Window
+    • Open a report for the selected RMA
+    • Display RMA information
+    • Display all machines in a table
+    • Add placeholder Print and PDF buttons
+
+[ ] Step 2: Enhance the Report Layout
+    • Professional report design
+    • Company logo (optional)
+    • Report title and generation date
+    • Machine count
+    • Status history
+    • Better spacing, colors, and page-ready formatting
+
+[ ] Step 3: Add Printable RMA Reports
+    • Print Preview
+    • Print dialog
+    • Page setup
+    • Multi-page support
+    • Headers and footers
+    • Print the selected RMA
+
+[ ] Step 4: Add Excel Export
+    • Export all displayed RMAs
+    • Respect search and status filters
+    • One machine per row
+    • Export as .xlsx
+
+[ ] Step 5: Add PDF Export
+    • Export selected RMA
+    • Export all displayed RMAs
+    • Respect search and status filters
+    • Professional PDF formatting
+    • Save as .pdf
+
+[ ] Step 6: Add Reports Menu & Toolbar
+    • View Selected RMA Report
+    • Print Selected RMA
+    • Export Selected RMA to PDF
+    • Print Current RMA List
+    • Print Detailed RMA List
+    • Export Current Results to Excel
+    • Export Current Results to PDF
+    • Double-click support (optional setting)
+
+[ ] Step 7: Add Report & Export Testing
+    • Report preview
+    • Printing
+    • PDF generation
+    • Excel export
+    • Filtered report testing
+    • Large RMA testing
+
+[ ] Step 8: Package Version 2.0
+    • Build executable/JAR
+    • Create installer
+    • Verify reports, printing, and exports
 
 3.0
 [ ] Expanded status list
