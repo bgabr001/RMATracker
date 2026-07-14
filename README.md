@@ -1250,6 +1250,7 @@ Version 2.0 – Reports & Export
     • Build executable/JAR
     • Create installer
     • Verify reports, printing, and exports
+    
 
 3.0
 [ ] Expanded status list
