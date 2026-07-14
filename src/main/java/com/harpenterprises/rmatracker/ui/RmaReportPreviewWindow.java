@@ -3,28 +3,47 @@ package com.harpenterprises.rmatracker.ui;
 import com.harpenterprises.rmatracker.model.RepairItem;
 import com.harpenterprises.rmatracker.model.RmaRecord;
 import com.harpenterprises.rmatracker.model.ShippingInfo;
+import com.harpenterprises.rmatracker.model.StatusHistory;
+import com.harpenterprises.rmatracker.storage.StatusHistoryRepository;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.html.HTMLEditorKit;
 import java.awt.*;
+import java.awt.print.PageFormat;
+import java.awt.print.Paper;
+import java.awt.print.Printable;
+import java.awt.print.PrinterException;
+import java.awt.print.PrinterJob;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Displays a complete preview of one RMA and every machine attached to it.
+ * Displays and prints a complete report for one selected RMA.
  *
  * Version 2.0 - Reports
- * Step 1: Report preview window
+ * Step 3: Printable RMA reports
  */
 public class RmaReportPreviewWindow extends JDialog {
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+    private static final DateTimeFormatter HISTORY_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm a");
+
+    private static final double POINTS_PER_INCH = 72.0;
+    private static final double DEFAULT_MARGIN = 0.50 * POINTS_PER_INCH;
+    private static final double HEADER_HEIGHT = 28.0;
+    private static final double FOOTER_HEIGHT = 24.0;
+
     private final RmaRecord rmaRecord;
     private final JEditorPane reportPane;
+    private final StatusHistoryRepository statusHistoryRepository;
+
+    private PageFormat pageFormat;
 
     public RmaReportPreviewWindow(
             Window owner,
@@ -32,7 +51,7 @@ public class RmaReportPreviewWindow extends JDialog {
     ) {
         super(
                 owner,
-                "RMA Report Preview",
+                "RMA Report",
                 ModalityType.APPLICATION_MODAL
         );
 
@@ -43,6 +62,9 @@ public class RmaReportPreviewWindow extends JDialog {
         }
 
         this.rmaRecord = rmaRecord;
+        this.statusHistoryRepository =
+                new StatusHistoryRepository();
+        this.pageFormat = createDefaultPageFormat();
 
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setSize(1200, 700);
@@ -72,13 +94,16 @@ public class RmaReportPreviewWindow extends JDialog {
         reportPane.setEditable(false);
         reportPane.setContentType("text/html");
         reportPane.setEditorKit(new HTMLEditorKit());
+
         reportPane.putClientProperty(
                 JEditorPane.HONOR_DISPLAY_PROPERTIES,
                 Boolean.TRUE
         );
+
         reportPane.setFont(
                 new Font("SansSerif", Font.PLAIN, 13)
         );
+
         reportPane.setText(buildReportHtml());
         reportPane.setCaretPosition(0);
 
@@ -106,13 +131,10 @@ public class RmaReportPreviewWindow extends JDialog {
         );
 
         JButton refreshButton =
-                new JButton("Refresh Preview");
+                new JButton("Refresh Report");
 
-        JButton printButton =
-                new JButton("Print");
-
-        JButton savePdfButton =
-                new JButton("Save as PDF");
+        JButton printPreviewButton =
+                new JButton("Print Preview...");
 
         JButton closeButton =
                 new JButton("Close");
@@ -121,22 +143,16 @@ public class RmaReportPreviewWindow extends JDialog {
                 event -> refreshReport()
         );
 
-        printButton.addActionListener(
-                event -> JOptionPane.showMessageDialog(
-                        this,
-                        "Printing will be added in Version 2, Step 3.",
-                        "Print RMA Report",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
-        );
+        printPreviewButton.addActionListener(
+                event -> {
+                    RmaPrintPreviewWindow previewWindow =
+                            new RmaPrintPreviewWindow(
+                                    this,
+                                    rmaRecord
+                            );
 
-        savePdfButton.addActionListener(
-                event -> JOptionPane.showMessageDialog(
-                        this,
-                        "PDF export will be added in Version 2, Step 5.",
-                        "Export RMA Report",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
+                    previewWindow.setVisible(true);
+                }
         );
 
         closeButton.addActionListener(
@@ -144,11 +160,362 @@ public class RmaReportPreviewWindow extends JDialog {
         );
 
         buttonPanel.add(refreshButton);
-        buttonPanel.add(printButton);
-        buttonPanel.add(savePdfButton);
+        buttonPanel.add(printPreviewButton);
         buttonPanel.add(closeButton);
 
         return buttonPanel;
+    }
+
+    private PageFormat createDefaultPageFormat() {
+        PrinterJob printerJob = PrinterJob.getPrinterJob();
+        PageFormat format = printerJob.defaultPage();
+
+        Paper paper = format.getPaper();
+
+        paper.setImageableArea(
+                DEFAULT_MARGIN,
+                DEFAULT_MARGIN,
+                paper.getWidth() - (DEFAULT_MARGIN * 2),
+                paper.getHeight() - (DEFAULT_MARGIN * 2)
+        );
+
+        format.setPaper(paper);
+        format.setOrientation(PageFormat.PORTRAIT);
+
+        return printerJob.validatePage(format);
+    }
+
+    private void showPageSetup() {
+        try {
+            PrinterJob printerJob = PrinterJob.getPrinterJob();
+
+            PageFormat selectedFormat =
+                    printerJob.pageDialog(pageFormat);
+
+            if (selectedFormat != null) {
+                pageFormat =
+                        printerJob.validatePage(selectedFormat);
+            }
+        } catch (RuntimeException exception) {
+            showPrintError(
+                    "The page setup window could not be opened.",
+                    exception
+            );
+        }
+    }
+
+    private void printReport() {
+        refreshReport();
+
+        PrinterJob printerJob = PrinterJob.getPrinterJob();
+
+        printerJob.setJobName(
+                "RMA Report - "
+                        + safeText(rmaRecord.getRmaNumber())
+        );
+
+        printerJob.setPrintable(
+                createReportPrintable(),
+                pageFormat
+        );
+
+        try {
+            if (!printerJob.printDialog()) {
+                return;
+            }
+
+            printerJob.print();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The RMA report was sent to the printer.",
+                    "Print Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+
+        } catch (PrinterException exception) {
+            showPrintError(
+                    "The RMA report could not be printed.",
+                    exception
+            );
+        } catch (RuntimeException exception) {
+            showPrintError(
+                    "An unexpected printing error occurred.",
+                    exception
+            );
+        }
+    }
+
+    private Printable createReportPrintable() {
+        return (graphics, format, pageIndex) -> {
+            Graphics2D graphics2D =
+                    (Graphics2D) graphics.create();
+
+            try {
+                graphics2D.setRenderingHint(
+                        RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON
+                );
+
+                double printableWidth =
+                        format.getImageableWidth();
+
+                double printableBodyHeight =
+                        format.getImageableHeight()
+                                - HEADER_HEIGHT
+                                - FOOTER_HEIGHT;
+
+                if (printableWidth <= 0
+                        || printableBodyHeight <= 0) {
+
+                    return Printable.NO_SUCH_PAGE;
+                }
+
+                int componentWidth =
+                        Math.max(
+                                1,
+                                reportPane.getPreferredSize().width
+                        );
+
+                double scale =
+                        printableWidth / componentWidth;
+
+                /*
+                 * Do not enlarge the report beyond its normal size.
+                 */
+                scale = Math.min(scale, 1.0);
+
+                int targetWidth =
+                        Math.max(
+                                1,
+                                (int) Math.floor(
+                                        printableWidth / scale
+                                )
+                        );
+
+                reportPane.setSize(
+                        targetWidth,
+                        Integer.MAX_VALUE
+                );
+
+                Dimension preferredSize =
+                        reportPane.getPreferredSize();
+
+                reportPane.setSize(
+                        targetWidth,
+                        preferredSize.height
+                );
+
+                double pageBodyHeightInComponentUnits =
+                        printableBodyHeight / scale;
+
+                int pageCount =
+                        Math.max(
+                                1,
+                                (int) Math.ceil(
+                                        preferredSize.height
+                                                / pageBodyHeightInComponentUnits
+                                )
+                        );
+
+                if (pageIndex >= pageCount) {
+                    return Printable.NO_SUCH_PAGE;
+                }
+
+                double pageX =
+                        format.getImageableX();
+
+                double pageY =
+                        format.getImageableY();
+
+                drawHeader(
+                        graphics2D,
+                        format,
+                        pageIndex,
+                        pageCount
+                );
+
+                drawFooter(
+                        graphics2D,
+                        format,
+                        pageIndex,
+                        pageCount
+                );
+
+                graphics2D.translate(
+                        pageX,
+                        pageY + HEADER_HEIGHT
+                );
+
+                graphics2D.clip(
+                        new Rectangle(
+                                0,
+                                0,
+                                (int) Math.ceil(printableWidth),
+                                (int) Math.ceil(printableBodyHeight)
+                        )
+                );
+
+                graphics2D.scale(scale, scale);
+
+                graphics2D.translate(
+                        0,
+                        -pageIndex
+                                * pageBodyHeightInComponentUnits
+                );
+
+                reportPane.printAll(graphics2D);
+
+                return Printable.PAGE_EXISTS;
+
+            } finally {
+                graphics2D.dispose();
+            }
+        };
+    }
+
+    private void drawHeader(
+            Graphics2D graphics,
+            PageFormat format,
+            int pageIndex,
+            int pageCount
+    ) {
+        double x = format.getImageableX();
+        double y = format.getImageableY();
+        double width = format.getImageableWidth();
+
+        graphics.setColor(Color.BLACK);
+        graphics.setFont(
+                new Font(
+                        "SansSerif",
+                        Font.BOLD,
+                        10
+                )
+        );
+
+        String title =
+                "RMA Report - "
+                        + safeText(
+                        rmaRecord.getRmaNumber()
+                );
+
+        FontMetrics metrics =
+                graphics.getFontMetrics();
+
+        graphics.drawString(
+                title,
+                (float) x,
+                (float) (y + metrics.getAscent())
+        );
+
+        String pageText =
+                "Page "
+                        + (pageIndex + 1)
+                        + " of "
+                        + pageCount;
+
+        float pageTextX =
+                (float) (
+                        x
+                                + width
+                                - metrics.stringWidth(pageText)
+                );
+
+        graphics.drawString(
+                pageText,
+                pageTextX,
+                (float) (y + metrics.getAscent())
+        );
+
+        graphics.drawLine(
+                (int) x,
+                (int) (y + HEADER_HEIGHT - 6),
+                (int) (x + width),
+                (int) (y + HEADER_HEIGHT - 6)
+        );
+    }
+
+    private void drawFooter(
+            Graphics2D graphics,
+            PageFormat format,
+            int pageIndex,
+            int pageCount
+    ) {
+        double x = format.getImageableX();
+        double y =
+                format.getImageableY()
+                        + format.getImageableHeight()
+                        - FOOTER_HEIGHT;
+
+        double width = format.getImageableWidth();
+
+        graphics.setColor(Color.DARK_GRAY);
+        graphics.setFont(
+                new Font(
+                        "SansSerif",
+                        Font.PLAIN,
+                        9
+                )
+        );
+
+        graphics.drawLine(
+                (int) x,
+                (int) y,
+                (int) (x + width),
+                (int) y
+        );
+
+        String generatedText =
+                "Generated "
+                        + LocalDate.now()
+                        .format(DATE_FORMATTER);
+
+        FontMetrics metrics =
+                graphics.getFontMetrics();
+
+        graphics.drawString(
+                generatedText,
+                (float) x,
+                (float) (y + metrics.getAscent() + 5)
+        );
+
+        String footerPageText =
+                "RMA "
+                        + safeText(rmaRecord.getRmaNumber())
+                        + " | "
+                        + (pageIndex + 1)
+                        + "/"
+                        + pageCount;
+
+        float footerTextX =
+                (float) (
+                        x
+                                + width
+                                - metrics.stringWidth(
+                                footerPageText
+                        )
+                );
+
+        graphics.drawString(
+                footerPageText,
+                footerTextX,
+                (float) (y + metrics.getAscent() + 5)
+        );
+    }
+
+    private void showPrintError(
+            String message,
+            Exception exception
+    ) {
+        JOptionPane.showMessageDialog(
+                this,
+                message
+                        + System.lineSeparator()
+                        + System.lineSeparator()
+                        + exception.getMessage(),
+                "Printing Error",
+                JOptionPane.ERROR_MESSAGE
+        );
     }
 
     private void refreshReport() {
@@ -206,7 +573,6 @@ public class RmaReportPreviewWindow extends JDialog {
                             background-color: #f1f1f1;
                         }
 
-
                         .empty-message {
                             padding: 14px;
                             background-color: #fff4cc;
@@ -238,7 +604,7 @@ public class RmaReportPreviewWindow extends JDialog {
         appendRmaInformation(html);
         appendShippingInformation(html);
         appendMachineInformation(html);
-        appendStatusHistoryPlaceholder(html);
+        appendStatusHistory(html);
 
         html.append("<div class='footer'>")
                 .append("Report preview generated on ")
@@ -299,28 +665,63 @@ public class RmaReportPreviewWindow extends JDialog {
         html.append("</table>");
     }
 
-    private void appendShippingInformation(StringBuilder html) {
+    private void appendShippingInformation(
+            StringBuilder html
+    ) {
         html.append("<h2>Shipping Information</h2>");
-        List<ShippingInfo> shipments = rmaRecord.getShippingInformation();
+
+        List<ShippingInfo> shipments =
+                rmaRecord.getShippingInformation();
+
         if (shipments == null || shipments.isEmpty()) {
-            html.append("<div class='empty-message'>No shipping information has been added.</div>");
+            html.append("""
+                    <div class='empty-message'>
+                        No shipping information has been added.
+                    </div>
+                    """);
+
             return;
         }
-        html.append("<table><tr><th>Direction</th><th>Carrier</th><th>Shipping Number</th></tr>");
+
+        html.append("<table>");
+        html.append("<tr>");
+        html.append("<th>Direction</th>");
+        html.append("<th>Carrier</th>");
+        html.append("<th>Shipping Number</th>");
+        html.append("</tr>");
+
         for (ShippingInfo shipment : shipments) {
             html.append("<tr>");
-            appendMachineCell(html, shipment.getDirection() == null ? "" : shipment.getDirection().toString());
-            appendMachineCell(html, shipment.getCarrier());
-            appendMachineCell(html, shipment.getTrackingNumber());
+
+            appendMachineCell(
+                    html,
+                    shipment.getDirection() == null
+                            ? ""
+                            : shipment.getDirection().toString()
+            );
+
+            appendMachineCell(
+                    html,
+                    shipment.getCarrier()
+            );
+
+            appendMachineCell(
+                    html,
+                    shipment.getTrackingNumber()
+            );
+
             html.append("</tr>");
         }
+
         html.append("</table>");
     }
 
     private void appendMachineInformation(
             StringBuilder html
     ) {
-        html.append("<h2>Machines Included - Table View</h2>");
+        html.append(
+                "<h2>Machines Included - Table View</h2>"
+        );
 
         List<RepairItem> repairItems =
                 rmaRecord.getRepairItems();
@@ -387,7 +788,9 @@ public class RmaReportPreviewWindow extends JDialog {
 
             appendMachineCell(
                     html,
-                    repairItem.isReceived() ? "X" : ""
+                    repairItem.isReceived()
+                            ? "X"
+                            : ""
             );
 
             html.append("</tr>");
@@ -411,17 +814,71 @@ public class RmaReportPreviewWindow extends JDialog {
         html.append("</td>");
     }
 
-    private void appendStatusHistoryPlaceholder(
+    private void appendStatusHistory(
             StringBuilder html
     ) {
         html.append("<h2>Status History</h2>");
 
-        html.append("""
-                <div class='empty-message'>
-                    Status history will be connected to this report
-                    during Version 2, Step 2.
-                </div>
-                """);
+        try {
+            List<StatusHistory> historyEntries =
+                    statusHistoryRepository.findByRmaNumber(
+                            rmaRecord.getRmaNumber()
+                    );
+
+            if (historyEntries.isEmpty()) {
+                html.append("""
+                        <div class='empty-message'>
+                            No status history was found for this RMA.
+                        </div>
+                        """);
+
+                return;
+            }
+
+            html.append("<table>");
+            html.append("<tr>");
+            html.append("<th>Changed At</th>");
+            html.append("<th>Previous Status</th>");
+            html.append("<th>New Status</th>");
+            html.append("</tr>");
+
+            for (StatusHistory history : historyEntries) {
+                html.append("<tr>");
+
+                appendMachineCell(
+                        html,
+                        history.getChangedAt() == null
+                                ? ""
+                                : history.getChangedAt()
+                                  .format(HISTORY_DATE_FORMATTER)
+                );
+
+                appendMachineCell(
+                        html,
+                        history.getOldStatus() == null
+                                ? "Initial Status"
+                                : history.getOldStatus().toString()
+                );
+
+                appendMachineCell(
+                        html,
+                        history.getNewStatus() == null
+                                ? ""
+                                : history.getNewStatus().toString()
+                );
+
+                html.append("</tr>");
+            }
+
+            html.append("</table>");
+
+        } catch (SQLException exception) {
+            html.append("""
+                    <div class='empty-message'>
+                        The status history could not be loaded.
+                    </div>
+                    """);
+        }
     }
 
     private void appendInformationRow(

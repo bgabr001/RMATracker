@@ -1198,13 +1198,14 @@ Version 2.0 – Reports & Export
     • Display all machines in a table
     • Add placeholder Print and PDF buttons
 
-[ ] Step 2: Enhance the Report Layout
+[x] Step 2: Enhance the Report Layout
     • Professional report design
-    • Company logo (optional)
+    • Company logo (optional) -> later version
     • Report title and generation date
     • Machine count
     • Status history
     • Better spacing, colors, and page-ready formatting
+    • Delete selected status-history entries
 
 [ ] Step 3: Add Printable RMA Reports
     • Print Preview

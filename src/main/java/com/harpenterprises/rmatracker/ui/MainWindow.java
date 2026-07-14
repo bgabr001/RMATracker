@@ -389,7 +389,7 @@ public class MainWindow extends JFrame {
     }
 
     private JSplitPane createCenterPanel() {
-        JPanel rmaPanel = createRmaTablePanel("RMA Records", rmaTable);
+        JPanel rmaPanel = createTablePanel("RMA Records", rmaTable);
 
         JSplitPane splitPane =
                 new JSplitPane(
@@ -423,198 +423,23 @@ public class MainWindow extends JFrame {
         return splitPane;
     }
 
-    private JPanel createRmaTablePanel(String RMA_Records, JTable rmaTable) {
-        JPanel rmaPanel =
+    private JPanel createTablePanel(
+            String title,
+            JTable table
+    ) {
+        JPanel panel =
                 new JPanel(new BorderLayout());
 
-        rmaPanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        RMA_Records
-                )
-        );
-
-        rmaPanel.add(
-                new JScrollPane(rmaTable),
-                BorderLayout.CENTER
-        );
-        return rmaPanel;
-    }
-
-    private JPanel createDetailPanel() {
-        JPanel panel =
-                new JPanel(new BorderLayout(10, 10));
-
         panel.setBorder(
-                BorderFactory.createTitledBorder(
-                        "Selected RMA Details"
-                )
-        );
-
-        detailMessageLabel.setBorder(
-                BorderFactory.createEmptyBorder(
-                        5,
-                        8,
-                        5,
-                        8
-                )
+                BorderFactory.createTitledBorder(title)
         );
 
         panel.add(
-                detailMessageLabel,
-                BorderLayout.NORTH
-        );
-
-        JPanel repairPanel = createRmaTablePanel("Repair Items", repairItemsTable);
-
-        JSplitPane detailSplitPane =
-                new JSplitPane(
-                        JSplitPane.HORIZONTAL_SPLIT,
-                        createRmaInformationPanel(),
-                        repairPanel
-                );
-
-        detailSplitPane.setResizeWeight(0.32);
-        detailSplitPane.setDividerLocation(390);
-
-        panel.add(
-                detailSplitPane,
+                new JScrollPane(table),
                 BorderLayout.CENTER
         );
 
         return panel;
-    }
-
-    private JPanel createRmaInformationPanel() {
-        JPanel panel =
-                new JPanel(new GridBagLayout());
-
-        panel.setBorder(
-                BorderFactory.createTitledBorder(
-                        "RMA Information"
-                )
-        );
-
-        GridBagConstraints constraints =
-                new GridBagConstraints();
-
-        constraints.insets =
-                new Insets(5, 8, 5, 8);
-
-        constraints.anchor =
-                GridBagConstraints.NORTHWEST;
-
-        int row = 0;
-
-        addDetailRow(
-                panel,
-                constraints,
-                row++,
-                "RMA Number:",
-                selectedRmaNumberValue
-        );
-
-        addDetailRow(
-                panel,
-                constraints,
-                row++,
-                "Date Sent:",
-                selectedDateSentValue
-        );
-
-        addDetailRow(
-                panel,
-                constraints,
-                row++,
-                "Date Received:",
-                selectedDateReceivedValue
-        );
-
-        addDetailRow(
-                panel,
-                constraints,
-                row++,
-                "Status:",
-                selectedStatusValue
-        );
-
-        addDetailRow(
-                panel,
-                constraints,
-                row++,
-                "Sent Shipping:",
-                createShippingScrollPane(
-                        selectedSentShippingValue
-                )
-        );
-
-        addDetailRow(
-                panel,
-                constraints,
-                row++,
-                "Return Shipping:",
-                createShippingScrollPane(
-                        selectedReturnShippingValue
-                )
-        );
-
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 0;
-        constraints.weighty = 0;
-        constraints.fill = GridBagConstraints.NONE;
-
-        JLabel notesLabel =
-                new JLabel("Notes:");
-
-        notesLabel.setFont(
-                notesLabel.getFont()
-                        .deriveFont(Font.BOLD)
-        );
-
-        panel.add(notesLabel, constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        constraints.weighty = 1;
-        constraints.fill = GridBagConstraints.BOTH;
-
-        panel.add(
-                new JScrollPane(selectedNotesArea),
-                constraints
-        );
-
-        return panel;
-    }
-
-    private void addDetailRow(
-            JPanel panel,
-            GridBagConstraints constraints,
-            int row,
-            String labelText,
-            JComponent valueComponent
-    ) {
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 0;
-        constraints.weighty = 0;
-        constraints.fill = GridBagConstraints.NONE;
-
-        JLabel label =
-                new JLabel(labelText);
-
-        label.setFont(
-                label.getFont()
-                        .deriveFont(Font.BOLD)
-        );
-
-        panel.add(label, constraints);
-
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        constraints.fill =
-                GridBagConstraints.HORIZONTAL;
-
-        panel.add(valueComponent, constraints);
     }
 
     private JTextArea createReadOnlyTextArea(
@@ -761,10 +586,7 @@ public class MainWindow extends JFrame {
         );
 
         statusHistoryButton.addActionListener(
-                event -> {
-                    System.out.println("Status History button clicked");
-                    openSelectedRmaHistory();
-                }
+                event -> openSelectedRmaHistory()
         );
 
         deleteRmaButton.addActionListener(

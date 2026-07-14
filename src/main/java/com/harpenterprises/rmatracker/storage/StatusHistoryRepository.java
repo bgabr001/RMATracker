@@ -59,6 +59,31 @@ public class StatusHistoryRepository {
         return historyEntries;
     }
 
+    /**
+     * Deletes one status-history row by its database ID.
+     *
+     * @return true when one row was deleted; otherwise false
+     */
+    public boolean deleteById(long historyId)
+            throws SQLException {
+
+        String sql = """
+                DELETE FROM status_history
+                WHERE id = ?
+                """;
+
+        try (
+                Connection connection =
+                        DatabaseManager.getConnection();
+
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, historyId);
+            return statement.executeUpdate() == 1;
+        }
+    }
+
     private StatusHistory mapStatusHistory(
             ResultSet resultSet
     ) throws SQLException {

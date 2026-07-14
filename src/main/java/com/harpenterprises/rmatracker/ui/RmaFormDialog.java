@@ -208,17 +208,44 @@ public class RmaFormDialog extends JDialog {
         setLayout(new BorderLayout(10, 10));
 
         add(
-                createFormPanel(),
+                new RmaFormInformationPanel(
+                        rmaNumberField,
+                        dateSentField,
+                        dateReceivedField,
+                        statusComboBox,
+                        notesArea
+                ),
                 BorderLayout.NORTH
         );
 
-        add(
-                createCenterDataPanel(),
+        JPanel centerDataPanel =
+                new JPanel(new BorderLayout(5, 5));
+
+        centerDataPanel.add(
+                new RmaFormShippingPanel(
+                        shippingTable,
+                        addShippingButton,
+                        removeShippingButton
+                ),
+                BorderLayout.NORTH
+        );
+
+        centerDataPanel.add(
+                new RmaFormRepairItemsPanel(
+                        repairItemsTable,
+                        addItemButton,
+                        removeItemButton
+                ),
                 BorderLayout.CENTER
         );
 
+        add(centerDataPanel, BorderLayout.CENTER);
+
         add(
-                createBottomButtonPanel(),
+                new RmaFormActionBar(
+                        saveButton,
+                        cancelButton
+                ),
                 BorderLayout.SOUTH
         );
 
@@ -272,204 +299,6 @@ public class RmaFormDialog extends JDialog {
      */
     public boolean isSaved() {
         return saved;
-    }
-
-    private JPanel createFormPanel() {
-        JPanel formPanel =
-                new JPanel(new GridBagLayout());
-
-        formPanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        "RMA Information"
-                )
-        );
-
-        GridBagConstraints constraints =
-                new GridBagConstraints();
-
-        constraints.insets =
-                new Insets(5, 8, 5, 8);
-
-        constraints.anchor =
-                GridBagConstraints.WEST;
-
-        constraints.fill =
-                GridBagConstraints.HORIZONTAL;
-
-        int row = 0;
-
-        addFormRow(
-                formPanel,
-                constraints,
-                row++,
-                "RMA Number:",
-                rmaNumberField
-        );
-
-        addFormRow(
-                formPanel,
-                constraints,
-                row++,
-                "Date Sent (YYYY-MM-DD):",
-                dateSentField
-        );
-
-        addFormRow(
-                formPanel,
-                constraints,
-                row++,
-                "Date Received (YYYY-MM-DD):",
-                dateReceivedField
-        );
-
-        addFormRow(
-                formPanel,
-                constraints,
-                row++,
-                "Status:",
-                statusComboBox
-        );
-
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 0;
-        constraints.weighty = 1;
-        constraints.anchor =
-                GridBagConstraints.NORTHWEST;
-
-        constraints.fill =
-                GridBagConstraints.NONE;
-
-        formPanel.add(
-                new JLabel("Notes:"),
-                constraints
-        );
-
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        constraints.fill =
-                GridBagConstraints.BOTH;
-
-        JScrollPane notesScrollPane =
-                new JScrollPane(notesArea);
-
-        notesScrollPane.setPreferredSize(
-                new Dimension(500, 100)
-        );
-
-        formPanel.add(
-                notesScrollPane,
-                constraints
-        );
-
-        return formPanel;
-    }
-
-    private void addFormRow(
-            JPanel panel,
-            GridBagConstraints constraints,
-            int row,
-            String labelText,
-            JComponent component
-    ) {
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 0;
-        constraints.weighty = 0;
-        constraints.fill =
-                GridBagConstraints.NONE;
-
-        panel.add(
-                new JLabel(labelText),
-                constraints
-        );
-
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        constraints.fill =
-                GridBagConstraints.HORIZONTAL;
-
-        panel.add(component, constraints);
-    }
-
-    private JPanel createCenterDataPanel() {
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.add(createShippingPanel(), BorderLayout.NORTH);
-        panel.add(createRepairItemsPanel(), BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel createShippingPanel() {
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(BorderFactory.createTitledBorder("Shipping Information"));
-        JScrollPane scrollPane = new JScrollPane(shippingTable);
-        scrollPane.setPreferredSize(new Dimension(850, 115));
-        panel.add(scrollPane, BorderLayout.CENTER);
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        buttons.add(addShippingButton);
-        buttons.add(new JLabel("Add another shipment"));
-        buttons.add(removeShippingButton);
-        panel.add(buttons, BorderLayout.SOUTH);
-        return panel;
-    }
-
-    private JPanel createRepairItemsPanel() {
-        JPanel repairItemsPanel =
-                new JPanel(new BorderLayout(5, 5));
-
-        repairItemsPanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        "Repair Items"
-                )
-        );
-
-        JScrollPane tableScrollPane =
-                new JScrollPane(repairItemsTable);
-
-        repairItemsPanel.add(
-                tableScrollPane,
-                BorderLayout.CENTER
-        );
-
-        JPanel itemButtonPanel =
-                new JPanel(
-                        new FlowLayout(
-                                FlowLayout.LEFT
-                        )
-                );
-
-        itemButtonPanel.add(addItemButton);
-        itemButtonPanel.add(removeItemButton);
-
-        repairItemsPanel.add(
-                itemButtonPanel,
-                BorderLayout.SOUTH
-        );
-
-        return repairItemsPanel;
-    }
-
-    private JPanel createBottomButtonPanel() {
-        JPanel buttonPanel =
-                new JPanel(
-                        new FlowLayout(
-                                FlowLayout.RIGHT
-                        )
-                );
-
-        buttonPanel.setBorder(
-                BorderFactory.createEmptyBorder(
-                        0,
-                        10,
-                        10,
-                        10
-                )
-        );
-
-        buttonPanel.add(saveButton);
-        buttonPanel.add(cancelButton);
-
-        return buttonPanel;
     }
 
     private void configureRepairItemColumnWidths() {

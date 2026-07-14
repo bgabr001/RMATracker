@@ -8,6 +8,7 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 public class StatusHistoryDialog extends JDialog {
@@ -18,6 +19,10 @@ public class StatusHistoryDialog extends JDialog {
     private final String rmaNumber;
     private final StatusHistoryRepository repository;
     private final DefaultTableModel tableModel;
+    private final JTable historyTable;
+    private final JButton deleteButton;
+    private final List<StatusHistory> displayedHistory =
+            new ArrayList<>();
 
     public StatusHistoryDialog(
             Window owner,
@@ -49,9 +54,12 @@ public class StatusHistoryDialog extends JDialog {
             }
         };
 
-        JTable historyTable = new JTable(tableModel);
+        historyTable = new JTable(tableModel);
         historyTable.setRowHeight(25);
         historyTable.setFillsViewportHeight(true);
+        historyTable.setSelectionMode(
+                ListSelectionModel.SINGLE_SELECTION
+        );
         historyTable.getTableHeader()
                 .setReorderingAllowed(false);
 
@@ -85,6 +93,21 @@ public class StatusHistoryDialog extends JDialog {
                 )
         );
 
+        deleteButton = new JButton("Delete Selected");
+        deleteButton.setEnabled(false);
+        deleteButton.addActionListener(
+                event -> deleteSelectedHistory()
+        );
+
+        historyTable.getSelectionModel()
+                .addListSelectionListener(event -> {
+                    if (!event.getValueIsAdjusting()) {
+                        deleteButton.setEnabled(
+                                historyTable.getSelectedRow() >= 0
+                        );
+                    }
+                });
+
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(
                 event -> dispose()
@@ -103,6 +126,7 @@ public class StatusHistoryDialog extends JDialog {
                 )
         );
 
+        buttonPanel.add(deleteButton);
         buttonPanel.add(closeButton);
 
         setLayout(new BorderLayout(10, 10));
@@ -120,15 +144,19 @@ public class StatusHistoryDialog extends JDialog {
         setMinimumSize(new Dimension(550, 300));
         setLocationRelativeTo(owner);
 
-        loadHistory();
+        loadHistory(true);
     }
 
-    private void loadHistory() {
+    private void loadHistory(boolean showEmptyMessage) {
         tableModel.setRowCount(0);
+        displayedHistory.clear();
+        deleteButton.setEnabled(false);
 
         try {
             List<StatusHistory> historyEntries =
                     repository.findByRmaNumber(rmaNumber);
+
+            displayedHistory.addAll(historyEntries);
 
             for (StatusHistory history : historyEntries) {
                 tableModel.addRow(
@@ -143,7 +171,7 @@ public class StatusHistoryDialog extends JDialog {
                 );
             }
 
-            if (historyEntries.isEmpty()) {
+            if (showEmptyMessage && historyEntries.isEmpty()) {
                 JOptionPane.showMessageDialog(
                         this,
                         "No status history was found for RMA "
@@ -157,6 +185,87 @@ public class StatusHistoryDialog extends JDialog {
             JOptionPane.showMessageDialog(
                     this,
                     "The status history could not be loaded.\n\n"
+                            + exception.getMessage(),
+                    "Database Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+
+            exception.printStackTrace();
+        }
+    }
+
+    private void deleteSelectedHistory() {
+        int viewRow = historyTable.getSelectedRow();
+
+        if (viewRow < 0) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Select a status-history entry first.",
+                    "No Entry Selected",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+            return;
+        }
+
+        int modelRow = historyTable.convertRowIndexToModel(viewRow);
+
+        if (modelRow < 0 || modelRow >= displayedHistory.size()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The selected history entry could not be identified.",
+                    "Selection Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        StatusHistory selectedHistory =
+                displayedHistory.get(modelRow);
+
+        String changedAt = selectedHistory.getChangedAt()
+                .format(DATE_FORMATTER);
+
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Delete this status-history entry?\n\n"
+                        + "Changed At: " + changedAt + "\n"
+                        + "Previous Status: "
+                        + (selectedHistory.getOldStatus() == null
+                        ? "Initial Status"
+                        : selectedHistory.getOldStatus())
+                        + "\nNew Status: "
+                        + selectedHistory.getNewStatus()
+                        + "\n\nThis action cannot be undone.",
+                "Delete Status History",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        try {
+            boolean deleted = repository.deleteById(
+                    selectedHistory.getId()
+            );
+
+            if (!deleted) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "The history entry was not found. It may have "
+                                + "already been deleted.",
+                        "Entry Not Found",
+                        JOptionPane.WARNING_MESSAGE
+                );
+            }
+
+            loadHistory(false);
+
+        } catch (SQLException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The status-history entry could not be deleted.\n\n"
                             + exception.getMessage(),
                     "Database Error",
                     JOptionPane.ERROR_MESSAGE
