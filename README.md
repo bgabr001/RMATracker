@@ -1238,7 +1238,7 @@ Version 2.0 – Reports & Export
     • Export Current Results to PDF
     • Double-click support (optional setting)
 
-[ ] Step 7: Add Report & Export Testing
+[x] Step 7: Add Report & Export Testing
     • Report preview
     • Printing
     • PDF generation

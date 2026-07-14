@@ -1,0 +1,1 @@
+package com.harpenterprises.rmatracker.report; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.*; class RmaReportHtmlBuilderTest{@Test void builderInstantiates(){assertNotNull(new RmaReportHtmlBuilder());}}
