@@ -7,6 +7,7 @@ import com.harpenterprises.rmatracker.model.ShippingInfo;
 import com.harpenterprises.rmatracker.model.Status;
 import com.harpenterprises.rmatracker.service.BackupService;
 import com.harpenterprises.rmatracker.service.ExcelExportService;
+import com.harpenterprises.rmatracker.service.PdfExportService;
 import com.harpenterprises.rmatracker.service.RmaSearchService;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
 
@@ -102,6 +103,7 @@ public class MainWindow extends JFrame {
     private final RmaSearchService searchService;
     private final BackupService backupService;
     private final ExcelExportService excelExportService;
+    private final PdfExportService pdfExportService;
 
     private final List<RmaRecord> allRmaRecords;
     private final List<RmaRecord> displayedRmaRecords;
@@ -117,6 +119,7 @@ public class MainWindow extends JFrame {
         searchService = new RmaSearchService();
         backupService = new BackupService();
         excelExportService = new ExcelExportService();
+        pdfExportService = new PdfExportService();
 
         allRmaRecords = new ArrayList<>();
         displayedRmaRecords = new ArrayList<>();
@@ -342,7 +345,9 @@ public class MainWindow extends JFrame {
                         this::exitApplication,
                         this::openSelectedRmaReport,
                         this::exportSelectedRmaToExcel,
-                        this::exportDisplayedRmasToExcel
+                        this::exportDisplayedRmasToExcel,
+                        this::exportSelectedRmaToPdf,
+                        this::exportDisplayedRmasToPdf
                 )
         );
 
@@ -1721,6 +1726,146 @@ public class MainWindow extends JFrame {
                     JOptionPane.ERROR_MESSAGE
             );
         }
+    }
+
+    private void exportSelectedRmaToPdf() {
+        RmaRecord selectedRecord = getSelectedRma();
+
+        if (selectedRecord == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please select an RMA to export.",
+                    "No RMA Selected",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        String safeName = createSafeExcelFileName(selectedRecord.getRmaNumber());
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export Selected RMA to PDF");
+        fileChooser.setSelectedFile(new File(
+                safeName + "_" + LocalDateTime.now().format(
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm")
+                ) + ".pdf"
+        ));
+        fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Document (*.pdf)", "pdf"));
+
+        int choice = fileChooser.showSaveDialog(this);
+        if (choice != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File selectedFile = ensurePdfExtension(fileChooser.getSelectedFile());
+        if (!confirmPdfOverwrite(selectedFile)) {
+            return;
+        }
+
+        try {
+            Path outputPath = selectedFile.toPath();
+            pdfExportService.exportSelectedRma(selectedRecord, outputPath);
+            int machineCount = selectedRecord.getRepairItems() == null
+                    ? 0 : selectedRecord.getRepairItems().size();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "PDF export complete.\n\nRMA: "
+                            + valueOrBlank(selectedRecord.getRmaNumber())
+                            + "\nMachines exported: " + machineCount
+                            + "\n\nSaved to:\n" + outputPath.toAbsolutePath(),
+                    "PDF Export Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        } catch (IOException exception) {
+            showPdfExportError(exception);
+        }
+    }
+
+    private void exportDisplayedRmasToPdf() {
+        if (displayedRmaRecords.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "There are no displayed RMAs to export.",
+                    "Nothing to Export",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export Displayed RMAs to PDF");
+        fileChooser.setSelectedFile(new File(
+                "Displayed_RMAs_" + LocalDateTime.now().format(
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm")
+                ) + ".pdf"
+        ));
+        fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Document (*.pdf)", "pdf"));
+
+        int choice = fileChooser.showSaveDialog(this);
+        if (choice != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File selectedFile = ensurePdfExtension(fileChooser.getSelectedFile());
+        if (!confirmPdfOverwrite(selectedFile)) {
+            return;
+        }
+
+        try {
+            Path outputPath = selectedFile.toPath();
+            pdfExportService.exportDisplayedRmas(
+                    new ArrayList<>(displayedRmaRecords), outputPath
+            );
+
+            int machineCount = 0;
+            for (RmaRecord record : displayedRmaRecords) {
+                if (record != null && record.getRepairItems() != null) {
+                    machineCount += record.getRepairItems().size();
+                }
+            }
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "PDF export complete.\n\nDisplayed RMAs exported: "
+                            + displayedRmaRecords.size()
+                            + "\nMachines exported: " + machineCount
+                            + "\n\nSaved to:\n" + outputPath.toAbsolutePath(),
+                    "PDF Export Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        } catch (IOException exception) {
+            showPdfExportError(exception);
+        }
+    }
+
+    private File ensurePdfExtension(File file) {
+        if (file.getName().toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            return file;
+        }
+        return new File(file.getParentFile(), file.getName() + ".pdf");
+    }
+
+    private boolean confirmPdfOverwrite(File file) {
+        if (!file.exists()) {
+            return true;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "The file already exists.\n\n" + file.getName() + "\n\nReplace it?",
+                "Replace Existing File",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        return choice == JOptionPane.YES_OPTION;
+    }
+
+    private void showPdfExportError(IOException exception) {
+        JOptionPane.showMessageDialog(
+                this,
+                "The PDF file could not be created.\n\n" + exception.getMessage(),
+                "PDF Export Error",
+                JOptionPane.ERROR_MESSAGE
+        );
     }
 
     private String createSafeExcelFileName(String rmaNumber) {

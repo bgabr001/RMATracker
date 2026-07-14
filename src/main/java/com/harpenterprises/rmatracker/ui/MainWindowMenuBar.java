@@ -18,7 +18,9 @@ public class MainWindowMenuBar extends JMenuBar {
             Runnable exitAction,
             Runnable viewSelectedReportAction,
             Runnable exportSelectedExcelAction,
-            Runnable exportDisplayedExcelAction
+            Runnable exportDisplayedExcelAction,
+            Runnable exportSelectedPdfAction,
+            Runnable exportDisplayedPdfAction
     ) {
         add(createFileMenu(
                 backupAction,
@@ -29,7 +31,9 @@ public class MainWindowMenuBar extends JMenuBar {
         add(createReportsMenu(
                 viewSelectedReportAction,
                 exportSelectedExcelAction,
-                exportDisplayedExcelAction
+                exportDisplayedExcelAction,
+                exportSelectedPdfAction,
+                exportDisplayedPdfAction
         ));
     }
 
@@ -85,7 +89,9 @@ public class MainWindowMenuBar extends JMenuBar {
     private JMenu createReportsMenu(
             Runnable viewSelectedReportAction,
             Runnable exportSelectedExcelAction,
-            Runnable exportDisplayedExcelAction
+            Runnable exportDisplayedExcelAction,
+            Runnable exportSelectedPdfAction,
+            Runnable exportDisplayedPdfAction
     ) {
         JMenu reportsMenu = new JMenu("Reports");
         reportsMenu.setMnemonic(KeyEvent.VK_P);
@@ -120,8 +126,23 @@ public class MainWindowMenuBar extends JMenuBar {
 
         reportsMenu.add(viewSelectedReportItem);
         reportsMenu.addSeparator();
+        JMenuItem exportSelectedPdfItem =
+                new JMenuItem("Export Selected RMA to PDF...");
+        exportSelectedPdfItem.addActionListener(
+                event -> exportSelectedPdfAction.run()
+        );
+
+        JMenuItem exportDisplayedPdfItem =
+                new JMenuItem("Export Displayed RMAs to PDF...");
+        exportDisplayedPdfItem.addActionListener(
+                event -> exportDisplayedPdfAction.run()
+        );
+
         reportsMenu.add(exportSelectedExcelItem);
         reportsMenu.add(exportDisplayedExcelItem);
+        reportsMenu.addSeparator();
+        reportsMenu.add(exportSelectedPdfItem);
+        reportsMenu.add(exportDisplayedPdfItem);
 
         return reportsMenu;
     }

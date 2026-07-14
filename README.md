@@ -1221,7 +1221,7 @@ Version 2.0 – Reports & Export
     • One machine per row
     • Export as .xlsx
 
-[ ] Step 5: Add PDF Export
+[X] Step 5: Add PDF Export
     • Export selected RMA
     • Export all displayed RMAs
     • Respect search and status filters
