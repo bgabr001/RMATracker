@@ -27,6 +27,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -34,12 +35,19 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 public class MainWindow extends JFrame {
+
+    private static final int MAX_AUTOMATIC_BACKUPS = 10;
+
+    private static final Path AUTOMATIC_BACKUP_FOLDER =
+            Path.of("backups", "automatic");
 
     /*
      * Search controls
@@ -2288,13 +2296,96 @@ public class MainWindow extends JFrame {
         int choice =
                 JOptionPane.showConfirmDialog(
                         this,
-                        "Are you sure you want to exit?",
+                        "Are you sure you want to exit?\n\n"
+                                + "A database backup will be created automatically.",
                         "Exit RMA Tracker",
-                        JOptionPane.YES_NO_OPTION
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE
                 );
 
-        if (choice == JOptionPane.YES_OPTION) {
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        try {
+            Path backupPath = createAutomaticBackup();
+
+            System.out.println(
+                    "Automatic database backup created: "
+                            + backupPath.toAbsolutePath()
+            );
+
             dispose();
+
+        } catch (IOException | SQLException exception) {
+            exception.printStackTrace();
+
+            int exitChoice =
+                    JOptionPane.showConfirmDialog(
+                            this,
+                            "The automatic database backup could not be created.\n\n"
+                                    + exception.getMessage()
+                                    + "\n\nDo you still want to exit?",
+                            "Automatic Backup Failed",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.ERROR_MESSAGE
+                    );
+
+            if (exitChoice == JOptionPane.YES_OPTION) {
+                dispose();
+            }
+        }
+    }
+
+    private Path createAutomaticBackup()
+            throws IOException, SQLException {
+
+        Files.createDirectories(AUTOMATIC_BACKUP_FOLDER);
+
+        Path backupPath = backupService.createBackup(
+                AUTOMATIC_BACKUP_FOLDER
+        );
+
+        deleteOldAutomaticBackups();
+
+        return backupPath;
+    }
+
+    private void deleteOldAutomaticBackups()
+            throws IOException {
+
+        if (!Files.exists(AUTOMATIC_BACKUP_FOLDER)) {
+            return;
+        }
+
+        try (Stream<Path> backupFiles =
+                     Files.list(AUTOMATIC_BACKUP_FOLDER)) {
+
+            List<Path> backups = backupFiles
+                    .filter(Files::isRegularFile)
+                    .sorted(
+                            Comparator.comparingLong(
+                                    this::getLastModifiedTime
+                            ).reversed()
+                    )
+                    .toList();
+
+            for (int index = MAX_AUTOMATIC_BACKUPS;
+                 index < backups.size();
+                 index++) {
+
+                Files.deleteIfExists(backups.get(index));
+            }
+        }
+    }
+
+    private long getLastModifiedTime(Path file) {
+        try {
+            return Files.getLastModifiedTime(file)
+                    .toMillis();
+
+        } catch (IOException exception) {
+            return 0L;
         }
     }
 
