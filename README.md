@@ -1228,7 +1228,7 @@ Version 2.0 – Reports & Export
     • Professional PDF formatting
     • Save as .pdf
 
-[ ] Step 6: Add Reports Menu & Toolbar
+[x] Step 6: Add Reports Menu & Toolbar
     • View Selected RMA Report
     • Print Selected RMA
     • Export Selected RMA to PDF
