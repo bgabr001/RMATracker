@@ -16,7 +16,9 @@ public class MainWindowMenuBar extends JMenuBar {
             Runnable backupAction,
             Runnable restoreAction,
             Runnable exitAction,
-            Runnable viewSelectedReportAction
+            Runnable viewSelectedReportAction,
+            Runnable exportSelectedExcelAction,
+            Runnable exportDisplayedExcelAction
     ) {
         add(createFileMenu(
                 backupAction,
@@ -25,7 +27,9 @@ public class MainWindowMenuBar extends JMenuBar {
         ));
 
         add(createReportsMenu(
-                viewSelectedReportAction
+                viewSelectedReportAction,
+                exportSelectedExcelAction,
+                exportDisplayedExcelAction
         ));
     }
 
@@ -79,7 +83,9 @@ public class MainWindowMenuBar extends JMenuBar {
     }
 
     private JMenu createReportsMenu(
-            Runnable viewSelectedReportAction
+            Runnable viewSelectedReportAction,
+            Runnable exportSelectedExcelAction,
+            Runnable exportDisplayedExcelAction
     ) {
         JMenu reportsMenu = new JMenu("Reports");
         reportsMenu.setMnemonic(KeyEvent.VK_P);
@@ -94,7 +100,28 @@ public class MainWindowMenuBar extends JMenuBar {
                         viewSelectedReportAction.run()
         );
 
+        JMenuItem exportSelectedExcelItem =
+                new JMenuItem(
+                        "Export Selected RMA to Excel..."
+                );
+
+        exportSelectedExcelItem.addActionListener(
+                event -> exportSelectedExcelAction.run()
+        );
+
+        JMenuItem exportDisplayedExcelItem =
+                new JMenuItem(
+                        "Export Displayed RMAs to Excel..."
+                );
+
+        exportDisplayedExcelItem.addActionListener(
+                event -> exportDisplayedExcelAction.run()
+        );
+
         reportsMenu.add(viewSelectedReportItem);
+        reportsMenu.addSeparator();
+        reportsMenu.add(exportSelectedExcelItem);
+        reportsMenu.add(exportDisplayedExcelItem);
 
         return reportsMenu;
     }

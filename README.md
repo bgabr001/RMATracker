@@ -1207,7 +1207,7 @@ Version 2.0 – Reports & Export
     • Better spacing, colors, and page-ready formatting
     • Delete selected status-history entries
 
-[ ] Step 3: Add Printable RMA Reports
+[x] Step 3: Add Printable RMA Reports
     • Print Preview
     • Print dialog
     • Page setup
@@ -1215,7 +1215,7 @@ Version 2.0 – Reports & Export
     • Headers and footers
     • Print the selected RMA
 
-[ ] Step 4: Add Excel Export
+[x] Step 4: Add Excel Export
     • Export all displayed RMAs
     • Respect search and status filters
     • One machine per row

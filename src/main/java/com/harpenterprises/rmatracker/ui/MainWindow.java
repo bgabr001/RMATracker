@@ -6,11 +6,13 @@ import com.harpenterprises.rmatracker.model.RmaSearchCriteria;
 import com.harpenterprises.rmatracker.model.ShippingInfo;
 import com.harpenterprises.rmatracker.model.Status;
 import com.harpenterprises.rmatracker.service.BackupService;
+import com.harpenterprises.rmatracker.service.ExcelExportService;
 import com.harpenterprises.rmatracker.service.RmaSearchService;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -22,8 +24,11 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -96,6 +101,7 @@ public class MainWindow extends JFrame {
     private final RmaRepository repository;
     private final RmaSearchService searchService;
     private final BackupService backupService;
+    private final ExcelExportService excelExportService;
 
     private final List<RmaRecord> allRmaRecords;
     private final List<RmaRecord> displayedRmaRecords;
@@ -110,6 +116,7 @@ public class MainWindow extends JFrame {
         repository = new RmaRepository();
         searchService = new RmaSearchService();
         backupService = new BackupService();
+        excelExportService = new ExcelExportService();
 
         allRmaRecords = new ArrayList<>();
         displayedRmaRecords = new ArrayList<>();
@@ -333,7 +340,9 @@ public class MainWindow extends JFrame {
                         this::backupDatabase,
                         this::restoreDatabase,
                         this::exitApplication,
-                        this::openSelectedRmaReport
+                        this::openSelectedRmaReport,
+                        this::exportSelectedRmaToExcel,
+                        this::exportDisplayedRmasToExcel
                 )
         );
 
@@ -1513,6 +1522,222 @@ public class MainWindow extends JFrame {
                 );
 
         reportWindow.setVisible(true);
+    }
+
+    private void exportSelectedRmaToExcel() {
+        RmaRecord selectedRecord = getSelectedRma();
+
+        if (selectedRecord == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please select an RMA to export.",
+                    "No RMA Selected",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        String rmaNumber = selectedRecord.getRmaNumber();
+        String safeName = createSafeExcelFileName(rmaNumber);
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export Selected RMA to Excel");
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm");
+
+        String timestamp =
+                LocalDateTime.now().format(formatter);
+
+        fileChooser.setSelectedFile(
+                new File(
+                        safeName
+                                + "_"
+                                + timestamp
+                                + ".xlsx"
+                )
+        );
+        fileChooser.setFileFilter(
+                new FileNameExtensionFilter(
+                        "Excel Workbook (*.xlsx)",
+                        "xlsx"
+                )
+        );
+
+        int choice = fileChooser.showSaveDialog(this);
+        if (choice != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File selectedFile = fileChooser.getSelectedFile();
+        if (!selectedFile.getName().toLowerCase(Locale.ROOT).endsWith(".xlsx")) {
+            selectedFile = new File(
+                    selectedFile.getParentFile(),
+                    selectedFile.getName() + ".xlsx"
+            );
+        }
+
+        if (selectedFile.exists()) {
+            int overwriteChoice = JOptionPane.showConfirmDialog(
+                    this,
+                    "The file already exists.\n\n"
+                            + selectedFile.getName()
+                            + "\n\nReplace it?",
+                    "Replace Existing File",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            if (overwriteChoice != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        try {
+            Path outputPath = selectedFile.toPath();
+            excelExportService.exportSelectedRma(selectedRecord, outputPath);
+
+            int machineCount = selectedRecord.getRepairItems() == null
+                    ? 0
+                    : selectedRecord.getRepairItems().size();
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Excel export complete.\n\n"
+                            + "RMA: " + valueOrBlank(rmaNumber) + "\n"
+                            + "Machines exported: " + machineCount + "\n\n"
+                            + "Saved to:\n" + outputPath.toAbsolutePath(),
+                    "Excel Export Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The Excel file could not be created.\n\n"
+                            + exception.getMessage(),
+                    "Excel Export Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    private void exportDisplayedRmasToExcel() {
+        if (displayedRmaRecords.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "There are no displayed RMAs to export.",
+                    "Nothing to Export",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export Displayed RMAs to Excel");
+        fileChooser.setSelectedFile(
+                new File(
+                        "Displayed_RMAs_"
+                                + LocalDateTime.now().format(
+                                DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm")
+                        )
+                                + ".xlsx"
+                )
+        );
+        fileChooser.setFileFilter(
+                new FileNameExtensionFilter(
+                        "Excel Workbook (*.xlsx)",
+                        "xlsx"
+                )
+        );
+
+        int choice = fileChooser.showSaveDialog(this);
+        if (choice != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File selectedFile = fileChooser.getSelectedFile();
+        if (!selectedFile.getName()
+                .toLowerCase(Locale.ROOT)
+                .endsWith(".xlsx")) {
+            selectedFile = new File(
+                    selectedFile.getParentFile(),
+                    selectedFile.getName() + ".xlsx"
+            );
+        }
+
+        if (selectedFile.exists()) {
+            int overwriteChoice =
+                    JOptionPane.showConfirmDialog(
+                            this,
+                            "The file already exists.\n\n"
+                                    + selectedFile.getName()
+                                    + "\n\nReplace it?",
+                            "Replace Existing File",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE
+                    );
+
+            if (overwriteChoice
+                    != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        try {
+            Path outputPath = selectedFile.toPath();
+
+            excelExportService.exportDisplayedRmas(
+                    new ArrayList<>(displayedRmaRecords),
+                    outputPath
+            );
+
+            int machineCount = 0;
+            for (RmaRecord record : displayedRmaRecords) {
+                if (record != null
+                        && record.getRepairItems() != null) {
+                    machineCount += record
+                            .getRepairItems()
+                            .size();
+                }
+            }
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Excel export complete.\n\n"
+                            + "Displayed RMAs exported: "
+                            + displayedRmaRecords.size()
+                            + "\nMachines exported: "
+                            + machineCount
+                            + "\n\nSaved to:\n"
+                            + outputPath.toAbsolutePath(),
+                    "Excel Export Complete",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The Excel file could not be created.\n\n"
+                            + exception.getMessage(),
+                    "Excel Export Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    private String createSafeExcelFileName(String rmaNumber) {
+        if (rmaNumber == null || rmaNumber.isBlank()) {
+            return "RMA";
+        }
+
+        String safeName = rmaNumber.trim().replaceAll(
+                "[\\/:*?\"<>|]",
+                "_"
+        );
+
+        return safeName.isBlank() ? "RMA" : safeName;
+    }
+
+    private String valueOrBlank(Object value) {
+        return value == null ? "" : value.toString().trim();
     }
 
     private void openSelectedRmaHistory() {
