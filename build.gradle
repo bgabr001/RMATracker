@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'com.gradleup.shadow' version '8.3.6'
 }
 
 group = 'com.harpenterprises'
@@ -20,6 +21,12 @@ dependencies {
 
 application {
     mainClass = 'com.harpenterprises.rmatracker.Main'
+}
+
+shadowJar {
+    archiveBaseName.set('RMA-Tracker')
+    archiveClassifier.set('')
+    archiveVersion.set('2.0')
 }
 
 test {

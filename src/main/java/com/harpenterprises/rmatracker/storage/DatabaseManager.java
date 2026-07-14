@@ -9,14 +9,37 @@ import java.sql.Statement;
 
 public final class DatabaseManager {
 
-    private static final String DATABASE_FOLDER = "data";
-    private static final String DATABASE_FILE = "rma-tracker.db";
+    private static final String APPLICATION_FOLDER_NAME = "RMA Tracker";
+    private static final String DATABASE_FOLDER_NAME = "data";
+    private static final String DATABASE_FILE_NAME = "rma-tracker.db";
+
+    /*
+     * Store writable application data in the current user's macOS
+     * Application Support folder instead of using a relative "data" folder.
+     *
+     * Example:
+     * /Users/YourName/Library/Application Support/RMA Tracker/data
+     */
+    private static final File APPLICATION_FOLDER = new File(
+            new File(
+                    new File(System.getProperty("user.home"), "Library"),
+                    "Application Support"
+            ),
+            APPLICATION_FOLDER_NAME
+    );
+
+    private static final File DATABASE_FOLDER = new File(
+            APPLICATION_FOLDER,
+            DATABASE_FOLDER_NAME
+    );
+
+    private static final File DATABASE_FILE = new File(
+            DATABASE_FOLDER,
+            DATABASE_FILE_NAME
+    );
 
     private static final String DATABASE_URL =
-            "jdbc:sqlite:"
-                    + DATABASE_FOLDER
-                    + File.separator
-                    + DATABASE_FILE;
+            "jdbc:sqlite:" + DATABASE_FILE.getAbsolutePath();
 
     private DatabaseManager() {
         // Prevent this utility class from being instantiated.
@@ -27,7 +50,18 @@ public final class DatabaseManager {
      */
     public static File getDatabaseFile() {
         createDatabaseFolder();
-        return new File(DATABASE_FOLDER, DATABASE_FILE);
+        return DATABASE_FILE;
+    }
+
+    /**
+     * Returns the main writable application folder.
+     *
+     * BackupService can use this method to store backups under:
+     * ~/Library/Application Support/RMA Tracker/backups
+     */
+    public static File getApplicationFolder() {
+        createApplicationFolder();
+        return APPLICATION_FOLDER;
     }
 
     public static Connection getConnection() throws SQLException {
@@ -135,8 +169,7 @@ public final class DatabaseManager {
                     """);
 
             /*
-             * This handles databases that were created before the
-             * version column was added.
+             * Handle databases created before these columns were added.
              */
             addColumnIfMissing(
                     connection,
@@ -205,18 +238,14 @@ public final class DatabaseManager {
 
             System.out.println(
                     "Database location: "
-                            + new File(
-                            DATABASE_FOLDER,
-                            DATABASE_FILE
-                    ).getAbsolutePath()
+                            + DATABASE_FILE.getAbsolutePath()
             );
 
         } catch (SQLException exception) {
-            System.err.println(
-                    "Could not initialize the SQLite database."
+            throw new IllegalStateException(
+                    "Could not initialize the SQLite database.",
+                    exception
             );
-
-            exception.printStackTrace();
         }
     }
 
@@ -275,13 +304,26 @@ public final class DatabaseManager {
         return false;
     }
 
-    private static void createDatabaseFolder() {
-        File folder = new File(DATABASE_FOLDER);
+    private static void createApplicationFolder() {
+        if (!APPLICATION_FOLDER.exists()
+                && !APPLICATION_FOLDER.mkdirs()) {
 
-        if (!folder.exists() && !folder.mkdirs()) {
+            throw new IllegalStateException(
+                    "Could not create the application folder: "
+                            + APPLICATION_FOLDER.getAbsolutePath()
+            );
+        }
+    }
+
+    private static void createDatabaseFolder() {
+        createApplicationFolder();
+
+        if (!DATABASE_FOLDER.exists()
+                && !DATABASE_FOLDER.mkdirs()) {
+
             throw new IllegalStateException(
                     "Could not create the database folder: "
-                            + folder.getAbsolutePath()
+                            + DATABASE_FOLDER.getAbsolutePath()
             );
         }
     }
