@@ -204,8 +204,8 @@ public class MainWindow extends JFrame {
          */
         String[] rmaColumns = {
                 "RMA Number",
-                "Date Sent",
-                "Date Received",
+                "Date Sent (YYYY-MM-DD)",
+                "Date Received (YYYY-MM-DD)",
                 "Status",
                 "Sent Shipping",
                 "Return Shipping",
@@ -328,10 +328,25 @@ public class MainWindow extends JFrame {
          * Window layout.
          */
         setLayout(new BorderLayout(10, 10));
-        setJMenuBar(createMenuBar());
+        setJMenuBar(
+                new MainWindowMenuBar(
+                        this::backupDatabase,
+                        this::restoreDatabase,
+                        this::exitApplication,
+                        this::openSelectedRmaReport
+                )
+        );
 
         add(
-                createHeaderPanel(),
+                new MainWindowSearchPanel(
+                        searchField,
+                        clearSearchButton,
+                        statusFilterComboBox,
+                        countyFilterComboBox,
+                        machineFilterComboBox,
+                        dateFromField,
+                        dateToField
+                ),
                 BorderLayout.NORTH
         );
 
@@ -341,7 +356,16 @@ public class MainWindow extends JFrame {
         );
 
         add(
-                createBottomPanel(),
+                new MainWindowActionBar(
+                        newRmaButton,
+                        openRmaButton,
+                        viewReportButton,
+                        statusHistoryButton,
+                        deleteRmaButton,
+                        refreshButton,
+                        exitButton,
+                        resultLabel
+                ),
                 BorderLayout.SOUTH
         );
 
@@ -364,167 +388,24 @@ public class MainWindow extends JFrame {
         refreshRmaTable(null);
     }
 
-    private JMenuBar createMenuBar() {
-        JMenuBar menuBar = new JMenuBar();
-
-        JMenu fileMenu = new JMenu("File");
-        fileMenu.setMnemonic(KeyEvent.VK_F);
-
-        JMenuItem backupItem = new JMenuItem("Backup Database...");
-        backupItem.setMnemonic(KeyEvent.VK_B);
-        backupItem.setAccelerator(
-                KeyStroke.getKeyStroke(
-                        KeyEvent.VK_B,
-                        Toolkit.getDefaultToolkit()
-                                .getMenuShortcutKeyMaskEx()
-                )
-        );
-        backupItem.addActionListener(event -> backupDatabase());
-
-        JMenuItem restoreItem = new JMenuItem("Restore Database...");
-        restoreItem.setMnemonic(KeyEvent.VK_R);
-        restoreItem.addActionListener(event -> restoreDatabase());
-
-        JMenuItem exitItem = new JMenuItem("Exit");
-        exitItem.addActionListener(event -> exitApplication());
-
-        fileMenu.add(backupItem);
-        fileMenu.add(restoreItem);
-        fileMenu.addSeparator();
-        fileMenu.add(exitItem);
-
-        menuBar.add(fileMenu);
-
-        JMenu reportsMenu = new JMenu("Reports");
-        reportsMenu.setMnemonic(KeyEvent.VK_P);
-
-        JMenuItem viewSelectedReportItem =
-                new JMenuItem("View Selected RMA Report");
-
-        viewSelectedReportItem.addActionListener(
-                event -> openSelectedRmaReport()
-        );
-
-        reportsMenu.add(viewSelectedReportItem);
-        menuBar.add(reportsMenu);
-
-        return menuBar;
-    }
-
-    private JPanel createHeaderPanel() {
-        JPanel outerPanel =
-                new JPanel(new BorderLayout(10, 10));
-
-        outerPanel.setBorder(
-                BorderFactory.createEmptyBorder(
-                        12,
-                        15,
-                        0,
-                        15
-                )
-        );
-
-        JLabel titleLabel =
-                new JLabel("RMA Tracker");
-
-        titleLabel.setFont(
-                new Font(
-                        "Arial",
-                        Font.BOLD,
-                        26
-                )
-        );
-
-        JPanel firstFilterRow =
-                new JPanel(
-                        new FlowLayout(
-                                FlowLayout.RIGHT
-                        )
-                );
-
-        firstFilterRow.add(new JLabel("Search:"));
-        firstFilterRow.add(searchField);
-        firstFilterRow.add(clearSearchButton);
-
-        firstFilterRow.add(
-                Box.createHorizontalStrut(10)
-        );
-
-        firstFilterRow.add(new JLabel("Status:"));
-        firstFilterRow.add(statusFilterComboBox);
-
-        JPanel secondFilterRow =
-                new JPanel(
-                        new FlowLayout(
-                                FlowLayout.RIGHT
-                        )
-                );
-
-        secondFilterRow.add(new JLabel("County:"));
-        secondFilterRow.add(countyFilterComboBox);
-
-        secondFilterRow.add(
-                Box.createHorizontalStrut(8)
-        );
-
-        secondFilterRow.add(new JLabel("Machine:"));
-        secondFilterRow.add(machineFilterComboBox);
-
-        secondFilterRow.add(
-                Box.createHorizontalStrut(8)
-        );
-
-        secondFilterRow.add(new JLabel("Sent From:"));
-        secondFilterRow.add(dateFromField);
-
-        secondFilterRow.add(new JLabel("To:"));
-        secondFilterRow.add(dateToField);
-
-        JPanel filtersPanel = new JPanel();
-
-        filtersPanel.setLayout(
-                new BoxLayout(
-                        filtersPanel,
-                        BoxLayout.Y_AXIS
-                )
-        );
-
-        filtersPanel.add(firstFilterRow);
-        filtersPanel.add(secondFilterRow);
-
-        outerPanel.add(
-                titleLabel,
-                BorderLayout.WEST
-        );
-
-        outerPanel.add(
-                filtersPanel,
-                BorderLayout.EAST
-        );
-
-        return outerPanel;
-    }
-
     private JSplitPane createCenterPanel() {
-        JPanel rmaPanel =
-                new JPanel(new BorderLayout());
-
-        rmaPanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        "RMA Records"
-                )
-        );
-
-        rmaPanel.add(
-                new JScrollPane(rmaTable),
-                BorderLayout.CENTER
-        );
+        JPanel rmaPanel = createRmaTablePanel("RMA Records", rmaTable);
 
         JSplitPane splitPane =
                 new JSplitPane(
                         JSplitPane.VERTICAL_SPLIT,
                         rmaPanel,
-                        createDetailPanel()
+                        new MainWindowDetailsPanel(
+                                detailMessageLabel,
+                                selectedRmaNumberValue,
+                                selectedDateSentValue,
+                                selectedDateReceivedValue,
+                                selectedStatusValue,
+                                selectedSentShippingValue,
+                                selectedReturnShippingValue,
+                                selectedNotesArea,
+                                repairItemsTable
+                        )
                 );
 
         splitPane.setResizeWeight(0.50);
@@ -540,6 +421,23 @@ public class MainWindow extends JFrame {
         );
 
         return splitPane;
+    }
+
+    private JPanel createRmaTablePanel(String RMA_Records, JTable rmaTable) {
+        JPanel rmaPanel =
+                new JPanel(new BorderLayout());
+
+        rmaPanel.setBorder(
+                BorderFactory.createTitledBorder(
+                        RMA_Records
+                )
+        );
+
+        rmaPanel.add(
+                new JScrollPane(rmaTable),
+                BorderLayout.CENTER
+        );
+        return rmaPanel;
     }
 
     private JPanel createDetailPanel() {
@@ -566,19 +464,7 @@ public class MainWindow extends JFrame {
                 BorderLayout.NORTH
         );
 
-        JPanel repairPanel =
-                new JPanel(new BorderLayout());
-
-        repairPanel.setBorder(
-                BorderFactory.createTitledBorder(
-                        "Repair Items"
-                )
-        );
-
-        repairPanel.add(
-                new JScrollPane(repairItemsTable),
-                BorderLayout.CENTER
-        );
+        JPanel repairPanel = createRmaTablePanel("Repair Items", repairItemsTable);
 
         JSplitPane detailSplitPane =
                 new JSplitPane(
@@ -762,52 +648,11 @@ public class MainWindow extends JFrame {
         return scrollPane;
     }
 
-    private JPanel createBottomPanel() {
-        JPanel outerPanel =
-                new JPanel(new BorderLayout());
-
-        outerPanel.setBorder(
-                BorderFactory.createEmptyBorder(
-                        0,
-                        15,
-                        10,
-                        15
-                )
-        );
-
-        JPanel buttons =
-                new JPanel(
-                        new FlowLayout(
-                                FlowLayout.LEFT
-                        )
-                );
-
-        buttons.add(newRmaButton);
-        buttons.add(openRmaButton);
-        buttons.add(viewReportButton);
-        buttons.add(statusHistoryButton);
-        buttons.add(deleteRmaButton);
-        buttons.add(refreshButton);
-        buttons.add(exitButton);
-
-        outerPanel.add(
-                buttons,
-                BorderLayout.WEST
-        );
-
-        outerPanel.add(
-                resultLabel,
-                BorderLayout.EAST
-        );
-
-        return outerPanel;
-    }
-
     private void configureRmaColumnWidths() {
         int[] widths = {
                 120,
-                120,
-                130,
+                150,
+                170,
                 140,
                 180,
                 180,
@@ -916,7 +761,10 @@ public class MainWindow extends JFrame {
         );
 
         statusHistoryButton.addActionListener(
-                event -> openSelectedRmaHistory()
+                event -> {
+                    System.out.println("Status History button clicked");
+                    openSelectedRmaHistory();
+                }
         );
 
         deleteRmaButton.addActionListener(

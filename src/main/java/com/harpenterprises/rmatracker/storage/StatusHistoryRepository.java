@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class StatusHistoryRepository {
 
@@ -34,16 +35,19 @@ public class StatusHistoryRepository {
         List<StatusHistory> historyEntries =
                 new ArrayList<>();
 
-        try (Connection connection =
-                     DatabaseManager.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (
+                Connection connection =
+                        DatabaseManager.getConnection();
 
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
             statement.setString(1, rmaNumber);
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (
+                    ResultSet resultSet =
+                            statement.executeQuery()
+            ) {
                 while (resultSet.next()) {
                     historyEntries.add(
                             mapStatusHistory(resultSet)
@@ -62,18 +66,24 @@ public class StatusHistoryRepository {
         String oldStatusText =
                 resultSet.getString("old_status");
 
+        String newStatusText =
+                resultSet.getString("new_status");
+
         Status oldStatus =
                 oldStatusText == null
+                        || oldStatusText.isBlank()
                         ? null
-                        : Status.valueOf(oldStatusText);
+                        : parseStatus(oldStatusText);
 
-        Status newStatus = Status.valueOf(
-                resultSet.getString("new_status")
-        );
+        Status newStatus =
+                parseStatus(newStatusText);
 
-        LocalDateTime changedAt = parseDateTime(
-                resultSet.getString("changed_at")
-        );
+        LocalDateTime changedAt =
+                parseDateTime(
+                        resultSet.getString(
+                                "changed_at"
+                        )
+                );
 
         return new StatusHistory(
                 resultSet.getLong("id"),
@@ -82,6 +92,60 @@ public class StatusHistoryRepository {
                 newStatus,
                 changedAt
         );
+    }
+
+    private Status parseStatus(
+            String statusText
+    ) throws SQLException {
+
+        if (statusText == null
+                || statusText.isBlank()) {
+
+            throw new SQLException(
+                    "A status-history status was missing."
+            );
+        }
+
+        String normalizedStatus =
+                statusText
+                        .trim()
+                        .toUpperCase(Locale.ROOT)
+                        .replace(' ', '_')
+                        .replace('-', '_');
+
+        /*
+         * Convert older database status names
+         * into the current Status enum values.
+         */
+        switch (normalizedStatus) {
+            case "RETURNED":
+                return Status.RECEIVED_BACK;
+
+            case "READY":
+                return Status.READY_TO_SHIP;
+
+            case "REPAIRING":
+                return Status.IN_REPAIR;
+
+            case "COMPLETE":
+                return Status.CLOSED;
+
+            default:
+                break;
+        }
+
+        try {
+            return Status.valueOf(
+                    normalizedStatus
+            );
+
+        } catch (IllegalArgumentException exception) {
+            throw new SQLException(
+                    "Unknown status value in status history: "
+                            + statusText,
+                    exception
+            );
+        }
     }
 
     private LocalDateTime parseDateTime(
@@ -98,8 +162,11 @@ public class StatusHistoryRepository {
 
         try {
             return LocalDateTime.parse(
-                    dateTimeText.trim().replace(' ', 'T')
+                    dateTimeText
+                            .trim()
+                            .replace(' ', 'T')
             );
+
         } catch (RuntimeException exception) {
             throw new SQLException(
                     "Could not read status-history date: "
