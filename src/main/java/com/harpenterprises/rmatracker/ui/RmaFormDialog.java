@@ -182,6 +182,7 @@ public class RmaFormDialog extends JDialog {
                         "Duo Standalone",
                         "Touch Writer",
                         "Duo",
+                        "Controller",
                         "Print"
                 }
         );

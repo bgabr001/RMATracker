@@ -9,6 +9,7 @@ import com.harpenterprises.rmatracker.service.BackupService;
 import com.harpenterprises.rmatracker.service.ExcelExportService;
 import com.harpenterprises.rmatracker.service.PdfExportService;
 import com.harpenterprises.rmatracker.service.RmaSearchService;
+import com.harpenterprises.rmatracker.storage.DatabaseManager;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
 
 import javax.swing.*;
@@ -47,7 +48,11 @@ public class MainWindow extends JFrame {
     private static final int MAX_AUTOMATIC_BACKUPS = 10;
 
     private static final Path AUTOMATIC_BACKUP_FOLDER =
-            Path.of("backups", "automatic");
+            DatabaseManager
+                    .getApplicationFolder()
+                    .toPath()
+                    .resolve("backups")
+                    .resolve("automatic");
 
     /*
      * Search controls
