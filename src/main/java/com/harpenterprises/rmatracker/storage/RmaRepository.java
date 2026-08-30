@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
-public class RmaRepository {
+public class  RmaRepository {
 
     public void save(RmaRecord record) throws SQLException {
         String sql = """
@@ -40,39 +40,179 @@ public class RmaRepository {
         }
     }
 
+
     public void update(RmaRecord record) throws SQLException {
+
+        /*
+         * Keep this method for compatibility with
+         * existing code that is not renaming an RMA.
+         */
+        update(
+                record.getRmaNumber(),
+                record
+        );
+    }
+
+
+    public void update(
+            String originalRmaNumber,
+            RmaRecord record
+    ) throws SQLException {
+
         String sql = """
-                UPDATE rmas SET date_sent=?, date_received=?, status=?,
-                    outgoing_tracking_number=?, return_tracking_number=?, notes=?,
-                    updated_at=CURRENT_TIMESTAMP WHERE rma_number=?
-                """;
-        try (Connection c = DatabaseManager.getConnection()) {
+            UPDATE rmas
+            SET rma_number=?,
+                date_sent=?,
+                date_received=?,
+                status=?,
+                outgoing_tracking_number=?,
+                return_tracking_number=?,
+                notes=?,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE rma_number=?
+            """;
+
+        try (Connection c =
+                     DatabaseManager.getConnection()) {
+
             c.setAutoCommit(false);
+
             try {
-                long id = findRmaId(c, record.getRmaNumber());
-                Status oldStatus = findCurrentStatus(c, id);
-                try (PreparedStatement ps = c.prepareStatement(sql)) {
-                    setNullableDate(ps, 1, record.getDateSent());
-                    setNullableDate(ps, 2, record.getDateReceived());
-                    ps.setString(3, record.getStatus().name());
-                    setNullableString(ps, 4, record.getOutgoingTrackingNumber());
-                    setNullableString(ps, 5, record.getReturnTrackingNumber());
-                    setNullableString(ps, 6, record.getNotes());
-                    ps.setString(7, record.getRmaNumber());
-                    if (ps.executeUpdate() == 0) throw new SQLException("RMA not found.");
+
+                /*
+                 * Find the permanent internal database ID
+                 * using the OLD RMA number.
+                 */
+                long id =
+                        findRmaId(
+                                c,
+                                originalRmaNumber
+                        );
+
+                Status oldStatus =
+                        findCurrentStatus(
+                                c,
+                                id
+                        );
+
+                try (PreparedStatement ps =
+                             c.prepareStatement(sql)) {
+
+                    /*
+                     * New RMA number.
+                     */
+                    ps.setString(
+                            1,
+                            record.getRmaNumber()
+                    );
+
+                    setNullableDate(
+                            ps,
+                            2,
+                            record.getDateSent()
+                    );
+
+                    setNullableDate(
+                            ps,
+                            3,
+                            record.getDateReceived()
+                    );
+
+                    ps.setString(
+                            4,
+                            record.getStatus().name()
+                    );
+
+                    setNullableString(
+                            ps,
+                            5,
+                            record
+                                    .getOutgoingTrackingNumber()
+                    );
+
+                    setNullableString(
+                            ps,
+                            6,
+                            record
+                                    .getReturnTrackingNumber()
+                    );
+
+                    setNullableString(
+                            ps,
+                            7,
+                            record.getNotes()
+                    );
+
+                    /*
+                     * Locate the database record using
+                     * the ORIGINAL RMA number.
+                     */
+                    ps.setString(
+                            8,
+                            originalRmaNumber
+                    );
+
+                    if (ps.executeUpdate() == 0) {
+                        throw new SQLException(
+                                "RMA not found: "
+                                        + originalRmaNumber
+                        );
+                    }
                 }
-                deleteRepairItems(c, id);
-                deleteShippingInformation(c, id);
-                insertRepairItems(c, id, record.getRepairItems());
-                insertShippingInformation(c, id, record.getShippingInformation());
-                if (!Objects.equals(oldStatus, record.getStatus())) {
-                    insertStatusHistory(c, id, oldStatus, record.getStatus());
+
+                /*
+                 * These records are connected using the
+                 * permanent database ID, not the visible
+                 * RMA number.
+                 */
+                deleteRepairItems(
+                        c,
+                        id
+                );
+
+                deleteShippingInformation(
+                        c,
+                        id
+                );
+
+                insertRepairItems(
+                        c,
+                        id,
+                        record.getRepairItems()
+                );
+
+                insertShippingInformation(
+                        c,
+                        id,
+                        record.getShippingInformation()
+                );
+
+                /*
+                 * Preserve the existing status-history
+                 * behavior.
+                 */
+                if (!Objects.equals(
+                        oldStatus,
+                        record.getStatus()
+                )) {
+
+                    insertStatusHistory(
+                            c,
+                            id,
+                            oldStatus,
+                            record.getStatus()
+                    );
                 }
+
                 c.commit();
+
             } catch (SQLException e) {
+
                 c.rollback();
                 throw e;
+
             } finally {
+
                 c.setAutoCommit(true);
             }
         }

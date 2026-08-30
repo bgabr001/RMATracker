@@ -590,7 +590,7 @@ public class RmaFormDialog extends JDialog {
          * The RMA number identifies the database
          * record, so it cannot be changed while editing.
          */
-        rmaNumberField.setEditable(false);
+        rmaNumberField.setEditable(true);
 
         dateSentField.setText(
                 formatDate(
@@ -781,7 +781,76 @@ public class RmaFormDialog extends JDialog {
                     return;
                 }
             } else {
-                repository.update(record);
+
+                String originalRmaNumber =
+                        existingRecord
+                                .getRmaNumber()
+                                .trim();
+
+                boolean rmaNumberChanged =
+                        !originalRmaNumber.equals(
+                                record.getRmaNumber()
+                        );
+
+                /*
+                 * If the RMA number was changed, make sure
+                 * another RMA does not already use the new number.
+                 */
+                if (rmaNumberChanged
+                        && repository.existsByRmaNumber(
+                        record.getRmaNumber()
+                )) {
+
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "An RMA with number "
+                                    + record.getRmaNumber()
+                                    + " already exists.\n\n"
+                                    + "Enter a different RMA number.",
+                            "Duplicate RMA Number",
+                            JOptionPane.WARNING_MESSAGE
+                    );
+
+                    rmaNumberField.requestFocusInWindow();
+                    rmaNumberField.selectAll();
+
+                    return;
+                }
+
+                /*
+                 * Changing an RMA number is an important action,
+                 * so require confirmation before saving it.
+                 */
+                if (rmaNumberChanged) {
+
+                    int choice =
+                            JOptionPane.showConfirmDialog(
+                                    this,
+                                    "You are changing the RMA number:\n\n"
+                                            + "Current: "
+                                            + originalRmaNumber
+                                            + "\n"
+                                            + "New: "
+                                            + record.getRmaNumber()
+                                            + "\n\n"
+                                            + "Repair items, shipping information, "
+                                            + "and status history will remain attached "
+                                            + "to this RMA.\n\n"
+                                            + "Do you want to continue?",
+                                    "Confirm RMA Number Change",
+                                    JOptionPane.YES_NO_OPTION,
+                                    JOptionPane.WARNING_MESSAGE
+                            );
+
+                    if (choice != JOptionPane.YES_OPTION) {
+                        return;
+                    }
+                }
+
+                repository.update(
+                        originalRmaNumber,
+                        record
+                );
             }
 
             saved = true;
