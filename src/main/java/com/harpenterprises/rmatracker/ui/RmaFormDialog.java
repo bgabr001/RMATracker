@@ -6,16 +6,21 @@ import com.harpenterprises.rmatracker.model.Status;
 import com.harpenterprises.rmatracker.model.ShippingInfo;
 import com.harpenterprises.rmatracker.model.ShippingDirection;
 import com.harpenterprises.rmatracker.storage.RmaRepository;
+import com.harpenterprises.rmatracker.service.ExcelRmaImportService;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.TableModelEvent;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.datatransfer.DataFlavor;
+import java.io.File;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -48,6 +53,7 @@ public class RmaFormDialog extends JDialog {
      */
     private final JButton addItemButton;
     private final JButton removeItemButton;
+    private final JButton importExcelButton;
     private final JButton addShippingButton;
     private final JButton removeShippingButton;
     private final JButton saveButton;
@@ -197,6 +203,8 @@ public class RmaFormDialog extends JDialog {
          */
         addItemButton = new JButton("Add Item");
         removeItemButton = new JButton("Remove Item");
+        importExcelButton = new JButton("Import Excel");
+        importExcelButton.setToolTipText("Import repair items from an Excel file");
         addShippingButton = new JButton("+");
         addShippingButton.setToolTipText("Add shipping information");
         removeShippingButton = new JButton("Remove Shipping");
@@ -235,7 +243,8 @@ public class RmaFormDialog extends JDialog {
                 new RmaFormRepairItemsPanel(
                         repairItemsTable,
                         addItemButton,
-                        removeItemButton
+                        removeItemButton,
+                        importExcelButton
                 ),
                 BorderLayout.CENTER
         );
@@ -252,6 +261,7 @@ public class RmaFormDialog extends JDialog {
 
         addListeners();
         addKeyboardShortcuts();
+        configureExcelDragAndDrop();
 
         /*
          * Load record after the listeners exist.
@@ -338,6 +348,10 @@ public class RmaFormDialog extends JDialog {
 
         removeItemButton.addActionListener(
                 event -> removeRepairItem()
+        );
+
+        importExcelButton.addActionListener(
+                event -> chooseAndImportExcelFile()
         );
 
         saveButton.addActionListener(
@@ -579,6 +593,304 @@ public class RmaFormDialog extends JDialog {
         );
 
         formChanged = true;
+    }
+
+    private void chooseAndImportExcelFile() {
+        stopTableEditing();
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(
+                existingRecord == null
+                        ? "Import Excel into New RMA"
+                        : "Import Excel into Existing RMA"
+        );
+
+        File downloadsFolder = new File(
+                System.getProperty("user.home"),
+                "Downloads"
+        );
+
+        if (downloadsFolder.isDirectory()) {
+            fileChooser.setCurrentDirectory(downloadsFolder);
+        }
+
+        fileChooser.setFileFilter(
+                new FileNameExtensionFilter(
+                        "Excel Files (*.xlsx, *.xls)",
+                        "xlsx",
+                        "xls"
+                )
+        );
+
+        fileChooser.setAcceptAllFileFilterUsed(false);
+
+        int result = fileChooser.showOpenDialog(this);
+
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        importExcelFile(fileChooser.getSelectedFile());
+    }
+
+    /**
+     * Imports repair items from Excel and appends them to the current form.
+     * The same method is used for a new RMA, an existing RMA, and drag/drop.
+     * Nothing is saved to the database until the user clicks Save.
+     */
+    private void importExcelFile(File file) {
+        if (file == null) {
+            return;
+        }
+
+        try {
+            ExcelRmaImportService importService =
+                    new ExcelRmaImportService();
+
+            List<RepairItem> importedItems =
+                    importService.importRepairItems(file);
+
+            ImportSummary summary =
+                    addImportedRepairItems(importedItems);
+
+            if (summary.addedCount == 0) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        summary.duplicateCount > 0
+                                ? "No machines were imported because every serial number already exists in this RMA."
+                                : "No repair items were found to import.",
+                        "Excel Import",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+                return;
+            }
+
+            formChanged = true;
+
+            StringBuilder message = new StringBuilder();
+            message.append(summary.addedCount)
+                    .append(" machine(s) imported from ")
+                    .append(file.getName())
+                    .append(".");
+
+            if (summary.duplicateCount > 0) {
+                message.append("\n\n")
+                        .append(summary.duplicateCount)
+                        .append(" duplicate serial number(s) were skipped.");
+            }
+
+            if (summary.missingMachineTypeCount > 0) {
+                message.append("\n\n")
+                        .append(summary.missingMachineTypeCount)
+                        .append(" imported machine(s) do not have a Machine Type. ")
+                        .append("Choose a Machine Type before saving the RMA.");
+            }
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    message.toString(),
+                    "Excel Import Complete",
+                    summary.missingMachineTypeCount > 0
+                            ? JOptionPane.WARNING_MESSAGE
+                            : JOptionPane.INFORMATION_MESSAGE
+            );
+
+            selectFirstImportedRow(summary.firstAddedRow);
+
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    exception.getMessage(),
+                    "Excel Import Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        } catch (RuntimeException exception) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "RMA Tracker could not import the Excel file.\n\n"
+                            + "Please verify the spreadsheet and try again.",
+                    "Excel Import Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            exception.printStackTrace();
+        }
+    }
+
+    private ImportSummary addImportedRepairItems(
+            List<RepairItem> importedItems
+    ) {
+        ImportSummary summary = new ImportSummary();
+
+        if (importedItems == null || importedItems.isEmpty()) {
+            return summary;
+        }
+
+        java.util.Set<String> existingSerials =
+                new java.util.HashSet<>();
+
+        for (int row = 0;
+             row < repairItemsTableModel.getRowCount();
+             row++) {
+
+            String serial = normalizeSerial(
+                    getTableValue(row, 2)
+            );
+
+            if (!serial.isBlank()) {
+                existingSerials.add(serial);
+            }
+        }
+
+        for (RepairItem item : importedItems) {
+            if (item == null) {
+                continue;
+            }
+
+            String serial = normalizeSerial(
+                    emptyIfNull(item.getSerialNumber())
+            );
+
+            if (!serial.isBlank()
+                    && existingSerials.contains(serial)) {
+                summary.duplicateCount++;
+                continue;
+            }
+
+            int newRow = repairItemsTableModel.getRowCount();
+
+            repairItemsTableModel.addRow(
+                    new Object[]{
+                            emptyIfNull(item.getCounty()),
+                            emptyIfNull(item.getMachineType()),
+                            emptyIfNull(item.getSerialNumber()),
+                            emptyIfNull(item.getVersion()),
+                            emptyIfNull(item.getProblemDescription()),
+                            emptyIfNull(item.getRepairDescription()),
+                            item.isReceived()
+                    }
+            );
+
+            if (summary.firstAddedRow < 0) {
+                summary.firstAddedRow = newRow;
+            }
+
+            summary.addedCount++;
+
+            if (emptyIfNull(item.getMachineType()).isBlank()) {
+                summary.missingMachineTypeCount++;
+            }
+
+            if (!serial.isBlank()) {
+                existingSerials.add(serial);
+            }
+        }
+
+        return summary;
+    }
+
+    private String normalizeSerial(String serial) {
+        return serial == null
+                ? ""
+                : serial.trim().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private void selectFirstImportedRow(int modelRow) {
+        if (modelRow < 0
+                || modelRow >= repairItemsTableModel.getRowCount()) {
+            return;
+        }
+
+        int viewRow = repairItemsTable.convertRowIndexToView(modelRow);
+
+        if (viewRow >= 0) {
+            repairItemsTable.setRowSelectionInterval(viewRow, viewRow);
+            repairItemsTable.scrollRectToVisible(
+                    repairItemsTable.getCellRect(viewRow, 0, true)
+            );
+        }
+    }
+
+    private void configureExcelDragAndDrop() {
+        TransferHandler excelDropHandler = new TransferHandler() {
+            @Override
+            public boolean canImport(TransferSupport support) {
+                if (!support.isDrop()) {
+                    return false;
+                }
+
+                if (!support.isDataFlavorSupported(
+                        DataFlavor.javaFileListFlavor
+                )) {
+                    return false;
+                }
+
+                support.setDropAction(COPY);
+                return true;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean importData(TransferSupport support) {
+                if (!canImport(support)) {
+                    return false;
+                }
+
+                try {
+                    List<File> files = (List<File>) support
+                            .getTransferable()
+                            .getTransferData(
+                                    DataFlavor.javaFileListFlavor
+                            );
+
+                    File excelFile = files.stream()
+                            .filter(RmaFormDialog.this::isExcelFile)
+                            .findFirst()
+                            .orElse(null);
+
+                    if (excelFile == null) {
+                        JOptionPane.showMessageDialog(
+                                RmaFormDialog.this,
+                                "Drop an Excel .xlsx or .xls file onto the RMA form.",
+                                "Unsupported File",
+                                JOptionPane.WARNING_MESSAGE
+                        );
+                        return false;
+                    }
+
+                    importExcelFile(excelFile);
+                    return true;
+
+                } catch (Exception exception) {
+                    JOptionPane.showMessageDialog(
+                            RmaFormDialog.this,
+                            "The dropped Excel file could not be imported.\n\n"
+                                    + exception.getMessage(),
+                            "Excel Import Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return false;
+                }
+            }
+        };
+
+        repairItemsTable.setTransferHandler(excelDropHandler);
+        getRootPane().setTransferHandler(excelDropHandler);
+    }
+
+    private boolean isExcelFile(File file) {
+        if (file == null || !file.isFile()) {
+            return false;
+        }
+
+        String name = file.getName().toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".xlsx") || name.endsWith(".xls");
+    }
+
+    private static final class ImportSummary {
+        private int addedCount;
+        private int duplicateCount;
+        private int missingMachineTypeCount;
+        private int firstAddedRow = -1;
     }
 
     private void loadExistingRecord() {

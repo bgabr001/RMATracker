@@ -11,7 +11,8 @@ public class RmaFormRepairItemsPanel extends JPanel {
     public RmaFormRepairItemsPanel(
             JTable repairItemsTable,
             JButton addItemButton,
-            JButton removeItemButton
+            JButton removeItemButton,
+            JButton importExcelButton
     ) {
         super(new BorderLayout(5, 5));
 
@@ -29,7 +30,8 @@ public class RmaFormRepairItemsPanel extends JPanel {
         add(
                 createButtonPanel(
                         addItemButton,
-                        removeItemButton
+                        removeItemButton,
+                        importExcelButton
                 ),
                 BorderLayout.SOUTH
         );
@@ -37,7 +39,8 @@ public class RmaFormRepairItemsPanel extends JPanel {
 
     private JPanel createButtonPanel(
             JButton addItemButton,
-            JButton removeItemButton
+            JButton removeItemButton,
+            JButton importExcelButton
     ) {
         JPanel buttonPanel =
                 new JPanel(
@@ -48,6 +51,7 @@ public class RmaFormRepairItemsPanel extends JPanel {
 
         buttonPanel.add(addItemButton);
         buttonPanel.add(removeItemButton);
+        buttonPanel.add(importExcelButton);
 
         return buttonPanel;
     }
