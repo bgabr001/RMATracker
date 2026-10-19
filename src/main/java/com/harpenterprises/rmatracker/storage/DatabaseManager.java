@@ -232,6 +232,26 @@ public final class DatabaseManager {
                     ON status_history(changed_at)
                     """);
 
+            // Phase 3: document metadata. Files remain on disk, not in SQLite.
+            // The foreign key uses the permanent RMA ID so renaming is safe.
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS rma_attachments (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rma_id INTEGER NOT NULL,
+                        original_file_name TEXT NOT NULL,
+                        stored_file_name TEXT NOT NULL,
+                        storage_path TEXT NOT NULL,
+                        file_size INTEGER NOT NULL CHECK(file_size >= 0),
+                        content_type TEXT,
+                        date_added TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (rma_id) REFERENCES rmas(id) ON DELETE CASCADE
+                    )
+                    """);
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_attachments_rma_id
+                    ON rma_attachments(rma_id)
+                    """);
+
             System.out.println(
                     "SQLite database initialized successfully."
             );

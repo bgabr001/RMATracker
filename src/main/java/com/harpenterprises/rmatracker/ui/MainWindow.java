@@ -2017,7 +2017,7 @@ public class MainWindow extends JFrame {
 
             JOptionPane.showMessageDialog(
                     this,
-                    "The database backup was created successfully.\n\n"
+                    "The complete RMA backup was created successfully.\n\n"
                             + backupPath.toAbsolutePath(),
                     "Backup Complete",
                     JOptionPane.INFORMATION_MESSAGE
@@ -2038,7 +2038,7 @@ public class MainWindow extends JFrame {
 
     private void restoreDatabase() {
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Select RMA Database Backup");
+        chooser.setDialogTitle("Select RMA Backup (.zip or legacy .db)");
         chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 
         int result = chooser.showOpenDialog(this);
@@ -2069,8 +2069,8 @@ public class MainWindow extends JFrame {
 
         int choice = JOptionPane.showConfirmDialog(
                 this,
-                "Restoring this backup will replace all current RMA data.\n\n"
-                        + "A safety backup of the current database will be "
+                "Restoring this backup will replace current RMA data and, for ZIP backups, attachments.\n\n"
+                        + "A safety backup of the current database and attachments will be "
                         + "created automatically.\n\n"
                         + "Continue with the restore?",
                 "Restore Database",
@@ -2097,7 +2097,7 @@ public class MainWindow extends JFrame {
 
             JOptionPane.showMessageDialog(
                     this,
-                    "The database was restored successfully.\n\n"
+                    "The RMA backup was restored successfully.\n\n"
                             + safetyMessage,
                     "Restore Complete",
                     JOptionPane.INFORMATION_MESSAGE
@@ -2316,7 +2316,7 @@ public class MainWindow extends JFrame {
             Path backupPath = createAutomaticBackup();
 
             System.out.println(
-                    "Automatic database backup created: "
+                    "Automatic complete backup created: "
                             + backupPath.toAbsolutePath()
             );
 

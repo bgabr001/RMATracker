@@ -249,7 +249,18 @@ public class RmaFormDialog extends JDialog {
                 BorderLayout.CENTER
         );
 
-        add(centerDataPanel, BorderLayout.CENTER);
+        // Step 7D: preserve the existing editor and add a Documents tab.
+        JTabbedPane editorTabs = new JTabbedPane();
+        editorTabs.addTab("Machines & Shipping", centerDataPanel);
+        RmaDocumentsPanel documentsPanel = new RmaDocumentsPanel(
+                existingRecord == null ? null : existingRecord.getRmaNumber());
+        editorTabs.addTab("Documents", documentsPanel);
+        editorTabs.addChangeListener(event -> {
+            if (editorTabs.getSelectedComponent() == documentsPanel) {
+                documentsPanel.refreshDocuments();
+            }
+        });
+        add(editorTabs, BorderLayout.CENTER);
 
         add(
                 new RmaFormActionBar(
