@@ -885,7 +885,8 @@ public class RmaFormDialog extends JDialog {
         };
 
         repairItemsTable.setTransferHandler(excelDropHandler);
-        getRootPane().setTransferHandler(excelDropHandler);
+        // Do not install Excel handling on the root pane: it intercepts document drops.
+        // Excel drops remain supported on the repair-items table only.
     }
 
     private boolean isExcelFile(File file) {

@@ -11,6 +11,9 @@ import org.apache.pdfbox.printing.PDFPageable;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import javax.swing.border.Border;
 import java.io.IOException;
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
@@ -32,7 +35,7 @@ public class RmaDocumentsPanel extends JPanel {
     private final JTable table;
     private final JLabel message = new JLabel(" ");
     private final JButton addButton = new JButton("Add Document");
-    private final JButton autoImportButton = new JButton("Auto Import PDFs");
+    private final JButton autoImportButton = new JButton("Import & Match Files");
     private final JButton openButton = new JButton("Open");
     private final JButton showButton = new JButton("Show in Finder");
     private final JButton removeButton = new JButton("Remove");
@@ -62,7 +65,7 @@ public class RmaDocumentsPanel extends JPanel {
         addButton.addActionListener(e -> addDocument());
         autoImportButton.addActionListener(e -> {
             Window owner = SwingUtilities.getWindowAncestor(this);
-            RmaAutomaticImportDialog dialog = new RmaAutomaticImportDialog(owner);
+            RmaAutomaticImportDialog dialog = new RmaAutomaticImportDialog(owner, rmaNumber);
             dialog.setVisible(true);
             refreshDocuments();
         });
@@ -96,7 +99,10 @@ public class RmaDocumentsPanel extends JPanel {
 
         header.add(toolbarScroll, BorderLayout.CENTER);
 
-        add(header, BorderLayout.NORTH);
+        JPanel top = new JPanel(new BorderLayout(0, 8));
+        top.add(header, BorderLayout.NORTH);
+        top.add(createDropZone(), BorderLayout.SOUTH);
+        add(top, BorderLayout.NORTH);
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), previewPanel);
         split.setResizeWeight(0.38);
         split.setDividerLocation(360);
@@ -107,6 +113,49 @@ public class RmaDocumentsPanel extends JPanel {
             @Override public void actionPerformed(java.awt.event.ActionEvent e) { performSelected("open"); }
         });
         refreshDocuments();
+    }
+
+    /** Step 10A: file-drop area for the currently open RMA. */
+    private JComponent createDropZone() {
+        JLabel dropZone = new JLabel("Drop files here to detect RMA numbers or assign manually", SwingConstants.CENTER);
+        dropZone.setOpaque(true);
+        dropZone.setBackground(UIManager.getColor("Panel.background"));
+        dropZone.setBorder(BorderFactory.createDashedBorder(new Color(130, 140, 155), 5, 5));
+        dropZone.setPreferredSize(new Dimension(100, 64));
+        dropZone.setToolTipText("Drop any files to review and assign them to existing RMAs");
+        dropZone.setTransferHandler(new TransferHandler() {
+            @Override public boolean canImport(TransferSupport support) {
+                return rmaNumber != null && !rmaNumber.isBlank()
+                        && support.isDrop()
+                        && support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+            }
+            @Override public boolean importData(TransferSupport support) {
+                if (!canImport(support)) return false;
+                final List<java.io.File> files;
+                try {
+                    Object data = support.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!(data instanceof List<?> raw)) return false;
+                    files = new ArrayList<>();
+                    for (Object item : raw) {
+                        if (!(item instanceof java.io.File file) || !file.isFile()) return false;
+                        files.add(file);
+                    }
+                    if (files.isEmpty()) return false;
+                } catch (UnsupportedFlavorException | IOException ex) {
+                    showError("Could not read dropped files", ex);
+                    return false;
+                }
+                // Use the same review-first workflow as Auto Import PDFs. Never attach
+                // a dropped PDF to the currently selected RMA without verifying its number.
+                Window owner = SwingUtilities.getWindowAncestor(RmaDocumentsPanel.this);
+                RmaAutomaticImportDialog dialog = new RmaAutomaticImportDialog(owner, rmaNumber);
+                dialog.analyzeFiles(files.stream().map(java.io.File::toPath).toList());
+                dialog.setVisible(true);
+                refreshDocuments();
+                return true;
+            }
+        });
+        return dropZone;
     }
 
     public void refreshDocuments() {

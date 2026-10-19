@@ -30,6 +30,11 @@ public final class RmaAttachmentStorageService {
 
     /** The RMA must already exist in the database. */
     public RmaAttachment add(String rmaNumber, Path source) throws IOException, SQLException {
+        return add(rmaNumber, source, false);
+    }
+
+    /** Explicit user-approved imports may retain identical copies. */
+    public RmaAttachment add(String rmaNumber, Path source, boolean allowIdentical) throws IOException, SQLException {
         if (rmaNumber == null || rmaNumber.isBlank()) {
             throw new IllegalArgumentException("RMA number is required");
         }
@@ -42,8 +47,10 @@ public final class RmaAttachmentStorageService {
 
         // Reuse an existing attachment only when its bytes match within the same RMA.
         // A matching filename alone is not sufficient: revised PDFs may share a name.
-        RmaAttachment duplicate = findDuplicate(rmaNumber, source);
-        if (duplicate != null) return duplicate;
+        if (!allowIdentical) {
+            RmaAttachment duplicate = findDuplicate(rmaNumber, source);
+            if (duplicate != null) return duplicate;
+        }
 
         // Use a stable numeric database ID, not an editable RMA number, for folder names.
         long rmaId = lookupRmaId(rmaNumber);
