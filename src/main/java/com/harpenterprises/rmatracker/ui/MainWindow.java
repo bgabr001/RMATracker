@@ -382,7 +382,14 @@ public class MainWindow extends JFrame {
                 BorderLayout.CENTER
         );
 
-        add(
+        JPanel machineSelectionToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton crossRmaSelectionButton = new JButton("Select Machines Across RMAs");
+        crossRmaSelectionButton.addActionListener(event ->
+                new CrossRmaMachineSelectionDialog(this).setVisible(true));
+        machineSelectionToolbar.add(crossRmaSelectionButton);
+        JPanel bottomActions = new JPanel(new BorderLayout());
+        bottomActions.add(machineSelectionToolbar, BorderLayout.NORTH);
+        bottomActions.add(
                 new MainWindowActionBar(
                         newRmaButton,
                         openRmaButton,
@@ -393,8 +400,9 @@ public class MainWindow extends JFrame {
                         exitButton,
                         resultLabel
                 ),
-                BorderLayout.SOUTH
+                BorderLayout.CENTER
         );
+        add(bottomActions, BorderLayout.SOUTH);
 
         addListeners();
         addKeyboardShortcuts();

@@ -12,7 +12,13 @@ public class RmaFormRepairItemsPanel extends JPanel {
             JTable repairItemsTable,
             JButton addItemButton,
             JButton removeItemButton,
-            JButton importExcelButton
+            JButton importExcelButton,
+            JButton selectAllMachinesButton,
+            JButton deselectAllMachinesButton,
+            JLabel machineSelectionCountLabel,
+            JTextField machineSearchField,
+            JComboBox<String> machineTypeFilter,
+            JButton clearMachineFiltersButton
     ) {
         super(new BorderLayout(5, 5));
 
@@ -21,6 +27,14 @@ public class RmaFormRepairItemsPanel extends JPanel {
                         "Repair Items"
                 )
         );
+
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        filterPanel.add(new JLabel("Search machines:"));
+        filterPanel.add(machineSearchField);
+        filterPanel.add(new JLabel("Type:"));
+        filterPanel.add(machineTypeFilter);
+        filterPanel.add(clearMachineFiltersButton);
+        add(filterPanel, BorderLayout.NORTH);
 
         add(
                 new JScrollPane(repairItemsTable),
@@ -31,7 +45,10 @@ public class RmaFormRepairItemsPanel extends JPanel {
                 createButtonPanel(
                         addItemButton,
                         removeItemButton,
-                        importExcelButton
+                        importExcelButton,
+                        selectAllMachinesButton,
+                        deselectAllMachinesButton,
+                        machineSelectionCountLabel
                 ),
                 BorderLayout.SOUTH
         );
@@ -40,7 +57,10 @@ public class RmaFormRepairItemsPanel extends JPanel {
     private JPanel createButtonPanel(
             JButton addItemButton,
             JButton removeItemButton,
-            JButton importExcelButton
+            JButton importExcelButton,
+            JButton selectAllMachinesButton,
+            JButton deselectAllMachinesButton,
+            JLabel machineSelectionCountLabel
     ) {
         JPanel buttonPanel =
                 new JPanel(
@@ -52,6 +72,9 @@ public class RmaFormRepairItemsPanel extends JPanel {
         buttonPanel.add(addItemButton);
         buttonPanel.add(removeItemButton);
         buttonPanel.add(importExcelButton);
+        buttonPanel.add(selectAllMachinesButton);
+        buttonPanel.add(deselectAllMachinesButton);
+        buttonPanel.add(machineSelectionCountLabel);
 
         return buttonPanel;
     }

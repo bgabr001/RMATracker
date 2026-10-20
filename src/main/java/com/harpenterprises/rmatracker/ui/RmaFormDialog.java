@@ -13,6 +13,9 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.TableModelEvent;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
+import javax.swing.RowFilter;
+import java.util.Locale;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -54,6 +57,13 @@ public class RmaFormDialog extends JDialog {
     private final JButton addItemButton;
     private final JButton removeItemButton;
     private final JButton importExcelButton;
+    private final JButton selectAllMachinesButton;
+    private final JButton deselectAllMachinesButton;
+    private final JLabel machineSelectionCountLabel;
+    private final JTextField machineSearchField;
+    private final JComboBox<String> machineTypeFilter;
+    private final JButton clearMachineFiltersButton;
+    private final TableRowSorter<DefaultTableModel> machineRowSorter;
     private final JButton addShippingButton;
     private final JButton removeShippingButton;
     private final JButton saveButton;
@@ -158,13 +168,14 @@ public class RmaFormDialog extends JDialog {
                                 "Version",
                                 "Problem Description",
                                 "Repair Description",
-                                "Received"
+                                "Received",
+                                "Select"
                         },
                         0
                 ) {
                     @Override
                     public Class<?> getColumnClass(int columnIndex) {
-                        return columnIndex == 6 ? Boolean.class : String.class;
+                        return (columnIndex == 6 || columnIndex == 7) ? Boolean.class : String.class;
                     }
                 };
 
@@ -172,7 +183,7 @@ public class RmaFormDialog extends JDialog {
                 new JTable(repairItemsTableModel);
 
         repairItemsTable.setSelectionMode(
-                ListSelectionModel.SINGLE_SELECTION
+                ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
         );
 
         repairItemsTable.setFillsViewportHeight(true);
@@ -196,6 +207,8 @@ public class RmaFormDialog extends JDialog {
                 .getColumn(1)
                 .setCellEditor(new DefaultCellEditor(machineTypeEditor));
 
+        machineRowSorter = new TableRowSorter<>(repairItemsTableModel);
+        repairItemsTable.setRowSorter(machineRowSorter);
         configureRepairItemColumnWidths();
 
         /*
@@ -203,6 +216,16 @@ public class RmaFormDialog extends JDialog {
          */
         addItemButton = new JButton("Add Item");
         removeItemButton = new JButton("Remove Item");
+        selectAllMachinesButton = new JButton("Select All");
+        deselectAllMachinesButton = new JButton("Deselect All");
+        machineSelectionCountLabel = new JLabel("0 of 0 machines selected");
+        machineSearchField = new JTextField(18);
+        machineSearchField.setToolTipText("Search county, serial number, machine type, or RMA number");
+        machineTypeFilter = new JComboBox<>(new String[]{
+                "All Types", "Scanner", "Duo Standalone", "Touch Writer",
+                "Duo", "Controller", "Print"
+        });
+        clearMachineFiltersButton = new JButton("Clear Filters");
         importExcelButton = new JButton("Import Excel");
         importExcelButton.setToolTipText("Import repair items from an Excel file");
         addShippingButton = new JButton("+");
@@ -244,7 +267,13 @@ public class RmaFormDialog extends JDialog {
                         repairItemsTable,
                         addItemButton,
                         removeItemButton,
-                        importExcelButton
+                        importExcelButton,
+                        selectAllMachinesButton,
+                        deselectAllMachinesButton,
+                        machineSelectionCountLabel,
+                        machineSearchField,
+                        machineTypeFilter,
+                        clearMachineFiltersButton
                 ),
                 BorderLayout.CENTER
         );
@@ -331,7 +360,8 @@ public class RmaFormDialog extends JDialog {
                 100,
                 260,
                 260,
-                90
+                90,
+                70
         };
 
         for (int column = 0;
@@ -349,7 +379,65 @@ public class RmaFormDialog extends JDialog {
         );
     }
 
+    private void updateMachineSelectionCount() {
+        int count = 0;
+        int total = repairItemsTableModel.getRowCount();
+        for (int row = 0; row < total; row++) {
+            if (Boolean.TRUE.equals(repairItemsTableModel.getValueAt(row, 7))) {
+                count++;
+            }
+        }
+        machineSelectionCountLabel.setText(count + " of " + total + " machines selected");
+    }
+
+    private void setAllMachinesSelected(boolean selected) {
+        if (repairItemsTable.isEditing()) {
+            repairItemsTable.getCellEditor().stopCellEditing();
+        }
+        for (int row = 0; row < repairItemsTableModel.getRowCount(); row++) {
+            repairItemsTableModel.setValueAt(selected, row, 7);
+        }
+        updateMachineSelectionCount();
+    }
+
+    private void applyMachineFilters() {
+        String search = machineSearchField.getText().trim().toLowerCase(Locale.ROOT);
+        String type = (String) machineTypeFilter.getSelectedItem();
+        String rma = rmaNumberField.getText().toLowerCase(Locale.ROOT);
+        machineRowSorter.setRowFilter(new RowFilter<DefaultTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+                String machineType = String.valueOf(entry.getValue(1));
+                if (!"All Types".equals(type) && !type.equals(machineType)) return false;
+                if (search.isEmpty()) return true;
+                if (rma.contains(search)) return true;
+                for (int column = 0; column <= 5; column++) {
+                    Object value = entry.getValue(column);
+                    if (value != null && value.toString().toLowerCase(Locale.ROOT).contains(search)) return true;
+                }
+                return false;
+            }
+        });
+    }
+
     private void addListeners() {
+        machineSearchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { applyMachineFilters(); }
+            public void removeUpdate(DocumentEvent e) { applyMachineFilters(); }
+            public void changedUpdate(DocumentEvent e) { applyMachineFilters(); }
+        });
+        machineTypeFilter.addActionListener(e -> applyMachineFilters());
+        clearMachineFiltersButton.addActionListener(e -> {
+            machineSearchField.setText("");
+            machineTypeFilter.setSelectedIndex(0);
+        });
+        rmaNumberField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { applyMachineFilters(); }
+            public void removeUpdate(DocumentEvent e) { applyMachineFilters(); }
+            public void changedUpdate(DocumentEvent e) { applyMachineFilters(); }
+        });
+        selectAllMachinesButton.addActionListener(event -> setAllMachinesSelected(true));
+        deselectAllMachinesButton.addActionListener(event -> setAllMachinesSelected(false));
         addShippingButton.addActionListener(event -> addShippingRow());
         removeShippingButton.addActionListener(event -> removeShippingRow());
 
@@ -433,13 +521,15 @@ public class RmaFormDialog extends JDialog {
 
         repairItemsTableModel.addTableModelListener(
                 event -> {
-                    if (event.getType()
-                            == TableModelEvent.UPDATE
-                            || event.getType()
-                            == TableModelEvent.INSERT
-                            || event.getType()
-                            == TableModelEvent.DELETE) {
-
+                    updateMachineSelectionCount();
+                    // The Select column is temporary UI state, not an RMA edit.
+                    if (event.getType() == TableModelEvent.UPDATE
+                            && event.getColumn() == 7) {
+                        return;
+                    }
+                    if (event.getType() == TableModelEvent.UPDATE
+                            || event.getType() == TableModelEvent.INSERT
+                            || event.getType() == TableModelEvent.DELETE) {
                         markFormChanged();
                     }
                 }
@@ -545,6 +635,7 @@ public class RmaFormDialog extends JDialog {
                         "",
                         "",
                         "",
+                        Boolean.FALSE,
                         Boolean.FALSE
                 }
         );
@@ -777,7 +868,8 @@ public class RmaFormDialog extends JDialog {
                             emptyIfNull(item.getVersion()),
                             emptyIfNull(item.getProblemDescription()),
                             emptyIfNull(item.getRepairDescription()),
-                            item.isReceived()
+                            item.isReceived(),
+                            Boolean.FALSE
                     }
             );
 
@@ -802,7 +894,7 @@ public class RmaFormDialog extends JDialog {
     private String normalizeSerial(String serial) {
         return serial == null
                 ? ""
-                : serial.trim().toUpperCase(java.util.Locale.ROOT);
+                : serial.trim().toUpperCase(Locale.ROOT);
     }
 
     private void selectFirstImportedRow(int modelRow) {
@@ -894,7 +986,7 @@ public class RmaFormDialog extends JDialog {
             return false;
         }
 
-        String name = file.getName().toLowerCase(java.util.Locale.ROOT);
+        String name = file.getName().toLowerCase(Locale.ROOT);
         return name.endsWith(".xlsx") || name.endsWith(".xls");
     }
 
@@ -986,7 +1078,8 @@ public class RmaFormDialog extends JDialog {
                             emptyIfNull(
                                     item.getRepairDescription()
                             ),
-                            item.isReceived()
+                            item.isReceived(),
+                            Boolean.FALSE
                     }
             );
         }
