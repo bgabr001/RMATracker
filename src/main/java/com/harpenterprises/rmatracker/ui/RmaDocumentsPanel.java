@@ -38,7 +38,8 @@ public class RmaDocumentsPanel extends JPanel {
     private final JButton autoImportButton = new JButton("Import & Match Files");
     private final JButton openButton = new JButton("Open");
     private final JButton showButton = new JButton("Show in Finder");
-    private final JButton removeButton = new JButton("Remove");
+    private final JButton removeButton = new JButton("Delete Selected");
+    private final JButton selectAllButton = new JButton("Select All");
     private final JButton fullPreviewButton = new JButton("Full Preview");
     private final JButton printButton = new JButton("Print");
     private final JButton downloadButton = new JButton("Download");
@@ -55,7 +56,7 @@ public class RmaDocumentsPanel extends JPanel {
         table.setFillsViewportHeight(true);
         table.setRowHeight(25);
         table.getTableHeader().setReorderingAllowed(false);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         table.setAutoCreateRowSorter(true);
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) { updateActions(); previewPanel.preview(selectedAttachment()); }
@@ -71,7 +72,8 @@ public class RmaDocumentsPanel extends JPanel {
         });
         openButton.addActionListener(e -> performSelected("open"));
         showButton.addActionListener(e -> performSelected("show"));
-        removeButton.addActionListener(e -> removeDocument());
+        removeButton.addActionListener(e -> removeDocuments());
+        selectAllButton.addActionListener(e -> table.selectAll());
         fullPreviewButton.addActionListener(e -> openFullPreview());
         printButton.addActionListener(e -> printDocument());
         downloadButton.addActionListener(e -> downloadDocument());
@@ -318,35 +320,57 @@ public class RmaDocumentsPanel extends JPanel {
         }
     }
 
-    private void removeDocument() {
-        RmaAttachment a = selectedAttachment();
-        if (a == null) return;
-        int response = JOptionPane.showConfirmDialog(this,
-                "Permanently remove this attachment from RMA " + rmaNumber + "?\n\n" +
-                        a.getOriginalFileName() + "\n\nThe stored copy will be deleted.",
-                "Confirm attachment removal", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+    private void removeDocuments() {
+        int[] rows = table.getSelectedRows();
+        if (rows.length == 0) return;
+        List<RmaAttachment> attachments = new ArrayList<>();
+        for (int viewRow : rows) {
+            int modelRow = table.convertRowIndexToModel(viewRow);
+            if (modelRow >= 0 && modelRow < displayed.size()) attachments.add(displayed.get(modelRow));
+        }
+        if (attachments.isEmpty()) return;
+        StringBuilder prompt = new StringBuilder("Permanently delete " + attachments.size()
+                + " document(s) from RMA " + rmaNumber + "?\n\n");
+        for (int i = 0; i < Math.min(attachments.size(), 8); i++) {
+            prompt.append("• ").append(attachments.get(i).getOriginalFileName()).append("\n");
+        }
+        if (attachments.size() > 8) prompt.append("...and ").append(attachments.size() - 8).append(" more\n");
+        prompt.append("\nThe stored copies will be permanently deleted.");
+        int response = JOptionPane.showConfirmDialog(this, prompt.toString(),
+                "Confirm bulk document deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (response != JOptionPane.YES_OPTION) return;
-        try {
-            if (!storage.remove(a.getId())) {
-                JOptionPane.showMessageDialog(this, "The attachment no longer exists.",
-                        "Documents", JOptionPane.INFORMATION_MESSAGE);
+        int deleted = 0;
+        List<String> failures = new ArrayList<>();
+        for (RmaAttachment attachment : attachments) {
+            try {
+                if (storage.remove(attachment.getId())) deleted++;
+                else failures.add(attachment.getOriginalFileName() + ": no longer exists");
+            } catch (IOException | SQLException | RuntimeException ex) {
+                failures.add(attachment.getOriginalFileName() + ": " + ex.getMessage());
             }
-            refreshDocuments();
-        } catch (IOException | SQLException | RuntimeException ex) {
-            showError("Could not remove document", ex);
+        }
+        refreshDocuments();
+        message.setText(deleted + " document(s) deleted" + (failures.isEmpty() ? "." : "; " + failures.size() + " failed."));
+        if (!failures.isEmpty()) {
+            JOptionPane.showMessageDialog(this, deleted + " deleted; " + failures.size()
+                    + " failed:\n\n" + String.join("\n", failures),
+                    "Bulk deletion results", JOptionPane.WARNING_MESSAGE);
         }
     }
 
     private void updateActions() {
         addButton.setEnabled(rmaNumber != null && !rmaNumber.isBlank());
         autoImportButton.setEnabled(true);
-        boolean selected = selectedAttachment() != null;
+        int selectionCount = table.getSelectedRowCount();
+        boolean selected = selectionCount == 1;
         openButton.setEnabled(selected);
         fullPreviewButton.setEnabled(selected);
         printButton.setEnabled(selected);
         downloadButton.setEnabled(selected);
         showButton.setEnabled(selected);
-        removeButton.setEnabled(selected);
+        removeButton.setEnabled(selectionCount > 0);
+        removeButton.setText(selectionCount > 0 ? "Delete Selected (" + selectionCount + ")" : "Delete Selected");
+        selectAllButton.setEnabled(table.getRowCount() > 0);
     }
 
     private void showError(String title, Exception ex) {
@@ -366,6 +390,7 @@ public class RmaDocumentsPanel extends JPanel {
         toolbar.add(printButton);
         toolbar.add(downloadButton);
         toolbar.add(showButton);
+        toolbar.add(selectAllButton);
         toolbar.add(removeButton);
 
         return toolbar;

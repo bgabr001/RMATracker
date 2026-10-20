@@ -6,6 +6,11 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
@@ -26,6 +31,10 @@ public final class RmaAutomaticImportDialog extends JDialog {
     private final JButton importButton = new JButton("Review Import");
     private boolean busy;
     private boolean updating;
+    private final List<Path> temporaryFolders = new ArrayList<>();
+    private static final long MAX_ZIP_FILE_BYTES = 100L * 1024 * 1024;
+    private static final long MAX_ZIP_TOTAL_BYTES = 500L * 1024 * 1024;
+    private static final int MAX_ZIP_ENTRIES = 2000;
 
     private static final class Entry {
         final Path path;
@@ -127,6 +136,7 @@ public final class RmaAutomaticImportDialog extends JDialog {
     private void selectFiles() {
         JFileChooser chooser = new JFileChooser();
         chooser.setMultiSelectionEnabled(true);
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
             analyzeFiles(Arrays.stream(chooser.getSelectedFiles()).map(File::toPath).toList());
     }
@@ -138,7 +148,16 @@ public final class RmaAutomaticImportDialog extends JDialog {
         new SwingWorker<List<Entry>, Void>() {
             @Override protected List<Entry> doInBackground() {
                 List<Entry> results = new ArrayList<>();
-                for (Path path : paths) {
+                List<Path> expanded = new ArrayList<>();
+                for (Path input : paths) {
+                    try { expandInput(input, expanded); }
+                    catch (IOException ex) {
+                        Entry failed = new Entry(input.toAbsolutePath().normalize(), defaultRma);
+                        failed.note = "Cannot open archive/folder: " + ex.getMessage();
+                        results.add(failed);
+                    }
+                }
+                for (Path path : expanded) {
                     Entry entry = new Entry(path.toAbsolutePath().normalize(), defaultRma);
                     if (!Files.isRegularFile(entry.path) || !Files.isReadable(entry.path)) {
                         entry.note = "File is not readable";
@@ -304,6 +323,71 @@ public final class RmaAutomaticImportDialog extends JDialog {
         detectedButton.setEnabled(!value && fileList.getSelectedValue() != null && fileList.getSelectedValue().detected != null);
         setDefaultCloseOperation(value ? DO_NOTHING_ON_CLOSE : DISPOSE_ON_CLOSE);
     }
+
+    private void expandInput(Path input, List<Path> output) throws IOException {
+        Path path = input.toAbsolutePath().normalize();
+        if (isIgnoredPath(path)) return;
+        if (Files.isDirectory(path)) {
+            try (var stream = Files.walk(path)) {
+                for (Path child : stream.filter(Files::isRegularFile).toList()) expandInput(child, output);
+            }
+        } else if (Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".zip")) {
+            Path temp = Files.createTempDirectory("rma-zip-import-");
+            synchronized (temporaryFolders) { temporaryFolders.add(temp); }
+            long total = 0;
+            int entries = 0;
+            try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(path))) {
+                ZipEntry item;
+                while ((item = zip.getNextEntry()) != null) {
+                    if (++entries > MAX_ZIP_ENTRIES) throw new IOException("ZIP contains too many entries");
+                    Path target = temp.resolve(item.getName()).normalize();
+                    if (!target.startsWith(temp)) throw new IOException("Unsafe ZIP entry: " + item.getName());
+                    // Ignore dotfiles, dot-directories, and macOS archive metadata.
+                    // Check the archive-relative path, not the temporary folder name.
+                    Path relative = temp.relativize(target);
+                    if (isIgnoredPath(relative)) { zip.closeEntry(); continue; }
+                    if (item.isDirectory()) { Files.createDirectories(target); continue; }
+                    Files.createDirectories(target.getParent());
+                    long fileBytes = 0;
+                    try (OutputStream out = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = zip.read(buffer)) != -1) {
+                            fileBytes += read;
+                            total += read;
+                            if (fileBytes > MAX_ZIP_FILE_BYTES || total > MAX_ZIP_TOTAL_BYTES)
+                                throw new IOException("ZIP extraction size limit exceeded");
+                            out.write(buffer, 0, read);
+                        }
+                    }
+                    output.add(target);
+                    zip.closeEntry();
+                }
+            }
+        } else output.add(path);
+    }
+
+    /** Exclude dot-prefixed files/folders and Finder ZIP metadata at any depth. */
+    private static boolean isIgnoredPath(Path path) {
+        for (Path component : path) {
+            String name = component.toString();
+            if (name.startsWith(".") || name.equalsIgnoreCase("__MACOSX")) return true;
+        }
+        return false;
+    }
+
+    @Override public void dispose() {
+        synchronized (temporaryFolders) {
+            for (Path folder : temporaryFolders) {
+                try (var paths = Files.walk(folder)) {
+                    for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+                } catch (IOException ignored) { /* Best effort temporary file cleanup. */ }
+            }
+            temporaryFolders.clear();
+        }
+        super.dispose();
+    }
+
     private void showError(Exception ex) {
         JOptionPane.showMessageDialog(this, String.valueOf(ex.getMessage()), "Document import error", JOptionPane.ERROR_MESSAGE);
     }
